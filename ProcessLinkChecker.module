@@ -1,0 +1,698 @@
+<?php
+
+/**
+ * Process Link Checker
+ *
+ * @copyright Copyright (c) 2014, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2013 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ * 
+ * @todo consider adding bulk actions 
+ * 
+ */
+class ProcessLinkChecker extends Process implements ConfigurableModule {
+
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'Process Link Checker',
+            'summary' => 'Automated Link Checking',
+            'author' => 'Teppo Koivula',
+            'version' => '0.1.0',
+            'singular' => true,
+            'autoload' => 'template=admin',
+            'permissions' => array('link-checker' => 'Access Link Checker'),
+            'icon' => 'link',
+            'requires' => array(
+                'ProcessWire>=2.4.1',
+                'PHP>=5.3.0',
+            ),
+        ); 
+    }
+
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'skipped_links' => array(),
+            'cache_max_age' => '1 DAY',
+            'selector' => 'status!=trash, has_parent!=2',
+            'http_host' => null,
+            'log_level' => 1,
+            'log_on_screen' => false,
+            'sleep_between_requests' => 1,
+        );
+    }
+
+    /**
+     * Names of the database tables used by this module and the crawler
+     * 
+     */
+    const TABLE_LINKS = 'link_checker_links';
+    const TABLE_LINKS_PAGES = 'link_checker_links_pages';
+
+    /**
+     * Name of admin page created and used by this module
+     * 
+     */
+    const PAGE_NAME = 'link-checker';
+
+    /**
+     * Descriptive names for HTTP status codes
+     * 
+     */
+    protected $status_codes = array(
+        100 => 'Continue',
+        101 => 'Switching Protocols',
+        102 => 'Processing',
+        200 => 'OK',
+        201 => 'Created',
+        202 => 'Accepted',
+        203 => 'Non-Authoritative Information',
+        204 => 'No Content',
+        205 => 'Reset Content',
+        206 => 'Partial Content',
+        207 => 'Multi-Status',
+        300 => 'Multiple Choices',
+        301 => 'Moved Permanently',
+        302 => 'Found',
+        303 => 'See Other',
+        304 => 'Not Modified',
+        305 => 'Use Proxy',
+        306 => 'Switch Proxy',
+        307 => 'Temporary Redirect',
+        308 => 'Permanent Redirect', // RFC 7238
+        400 => 'Bad Request',
+        401 => 'Unauthorized',
+        402 => 'Payment Required',
+        403 => 'Forbidden',
+        404 => 'Not Found',
+        405 => 'Method Not Allowed',
+        406 => 'Not Acceptable',
+        407 => 'Proxy Authentication Required',
+        408 => 'Request Timeout',
+        409 => 'Conflict',
+        410 => 'Gone',
+        411 => 'Length Required',
+        412 => 'Precondition Failed',
+        413 => 'Request Entity Too Large',
+        414 => 'Request-URI Too Long',
+        415 => 'Unsupported Media Type',
+        416 => 'Requested Range Not Satisfiable',
+        417 => 'Expectation Failed',
+        418 => 'I\'m a teapot', // RFC 2324
+        419 => 'Authentication Timeout',
+        420 => 'Enhance Your Calm', // Twitter
+        422 => 'Unprocessable Entity',
+        423 => 'Locked',
+        424 => 'Failed Dependency',
+        425 => 'Unordered Collection',
+        426 => 'Upgrade Required',
+        429 => 'Too Many Requests', // RFC 6585
+        449 => 'Retry With',
+        450 => 'Blocked by Windows Parental Controls',
+        500 => 'Internal Server Error',
+        501 => 'Not Implemented',
+        502 => 'Bad Gateway',
+        503 => 'Service Unavailable',
+        504 => 'Gateway Timeout',
+        505 => 'HTTP Version Not Supported',
+        506 => 'Variant Also Negotiates',
+        507 => 'Insufficient Storage',
+        509 => 'Bandwidth Limit Exceeded',
+        510 => 'Not Extended',
+    );
+    
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     *
+     */
+    public function __construct() {
+        foreach (self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // clear cache?
+        $cache_interval = wire('database')->escapeStr($data['cache_max_age']);
+        $cache_query = wire('database')->query("SELECT COUNT(*) FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
+        $cache_count = (int) $cache_query->fetchColumn();
+        if (wire('input')->post->_clear_cache) {
+            wire('database')->query("DELETE FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
+            wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
+            wire('session')->redirect($_SERVER['REQUEST_URI'], false);
+        }
+
+        // selector for finding pages to check for broken links
+        if (wire('modules')->isInstalled('InputfieldSelector')) {
+            $field = wire('modules')->get('InputfieldSelector');
+        } else {
+            $field = wire('modules')->get('InputfieldText');
+        }
+        $field->name = "selector";
+        $field->label = __("Selector");
+        $field->value = $data['selector'];
+        $field->description = __("Selector for finding pages to check for broken links.");
+        $fields->add($field);
+
+        // skipped links
+        $field = wire('modules')->get('InputfieldTextarea');
+        $field->name = "skipped_links";
+        $field->label = __("Skipped links");
+        $field->description = __("Links that should always be skipped, one per line.");
+        $field->notes = sprintf(__("Links pointing to admin pages (%s*) will always be skipped."), wire('config')->urls->admin);
+        $field->value = implode("\n", $data['skipped_links']);
+        $fields->add($field);
+
+        // default http host
+        $field = wire('modules')->get('InputfieldURL');
+        $field->name = "http_host";
+        $field->label = __("Default HTTP host");
+        $field->description = __("Host to be prepended to relative URLs");
+        $field->notes = __("Relative URLs can't be checked unless default HTTP host (e.g. http://localhost/) is defined here.");
+        $field->value = $data['http_host'];
+        $fields->add($field);
+
+        // sleep between requests
+        $field = wire('modules')->get('InputfieldInteger');
+        $field->name = "sleep_between_requests";
+        $field->label = __("Sleep between requests");
+        $field->description = __("For how long should the crawler sleep between each request, in seconds?");
+        $field->notes = __("This setting is used to lessen the load to both local server (the one making the requests) and the opposite end. Default value is one second.");
+        $field->value = $data['sleep_between_requests'];
+        $fields->add($field);
+
+        // caching settings
+        $fieldset = wire('modules')->get('InputfieldFieldset');
+        $fieldset->label = __("Caching");
+        $fieldset->icon = "database";
+        $fields->add($fieldset);
+
+        // cache max age
+        $field = wire('modules')->get('InputfieldSelect');
+        $field->name = "cache_max_age";
+        $field->label = __("Cache max age");
+        $field->description = __("How long should we wait before checking a previously checked link again?");
+        $field->addOption('1 DAY', __("1 day"));
+        $field->addOption('1 WEEK', __("1 week"));
+        $field->addOption('2 WEEK', __("2 weeks"));
+        $field->addOption('1 MONTH', __("1 month"));
+        $field->value = $data['cache_max_age'];
+        $fieldset->add($field);
+
+        // clear cache now
+        $field = wire('modules')->get('InputfieldCheckbox');
+        $field->name = "_clear_cache";
+        $field->label = __("Clear cache now");
+        $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
+        $fieldset->add($field);
+
+        // log level
+        $field = wire('modules')->get('InputfieldSelect');
+        $field->name = "log_level";
+        $field->label = __("Log level");
+        $field->description = __("Define how much gets logged by crawler.");
+        $field->addOption('0', __("Nothing (no logging)"));
+        $field->addOption('1', __("Start of each crawl"));
+        $field->addOption('2', __("Crawled pages"));
+        $field->addOption('3', __("Crawled pages and found URLs"));
+        $field->addOption('4', __("Crawled pages, found URLs and recursively checked URLs"));
+        $field->value = $data['log_level'];
+        $fields->add($field);
+
+        return $fields;
+
+    }
+
+    /**
+     * Initialization function
+     *
+     */
+    public function init() {
+        // custom handling (sanitizing) for skipped links in module config
+        $this->addHookBefore('Modules::saveModuleConfigData', $this, 'sanitizeConfig');
+    }
+
+    /**
+     * Sanitize config data upon save
+     * 
+     * Convert URLs separated by newlines to array and remove duplicate or empty
+     * values (skipped_links) + make sure that http_host ends with single slash.
+     *
+     * @param HookEvent $event
+     */
+    protected function sanitizeConfig(HookEvent $event) {
+        if ($event->arguments[0] != $this->className()) return;
+        $arguments = $event->arguments;
+        if ($arguments[1]['skipped_links']) {
+            $arguments[1]['skipped_links'] = array_unique(array_filter(array_map(
+                function($item) {
+                    return trim($item);
+                },
+                preg_split("/\r\n|\n|\r/", $arguments[1]['skipped_links'])
+            )));
+        }
+        if ($arguments[1]['http_host']) {
+            $arguments[1]['http_host'] = rtrim((string) $arguments[1]['http_host'], "/") . "/";
+        }
+        $event->arguments = $arguments;
+    }
+
+    /**
+     * Executed when page with this process assigned is accessed
+     *
+     */
+    public function execute() {
+
+        // load scripts and styles
+        $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".js");
+        $this->config->styles->append($this->config->urls->{$this->className()} . $this->className() . ".css");
+
+        // fieldset (tabs)
+        $this->modules->get('JqueryWireTabs');
+        $tab_links = new InputfieldMarkup();
+        $tab_links->attr('title', __("Broken Links"));
+        $tab_links->description = __("Congratulations, no broken links found!");
+        $tab_links->label = "&nbsp;";
+        $tab_redirects = new InputfieldMarkup();
+        $tab_redirects->attr('title', __("Redirects"));
+        $tab_redirects->description = __("No redirects have been identified yet.");
+        $tab_redirects->label = "&nbsp;";
+        $tab_skipped_links = new InputfieldMarkup();
+        $tab_skipped_links->attr('title', __("Skipped Links"));
+        $tab_skipped_links->description = __("Not a single link has been marked as skipped so far!");
+        $tab_skipped_links->label = "&nbsp;";
+        $tab_check = new InputfieldMarkup();
+        $tab_check->attr('title', __("Check now"));
+        $tab_check->description = __("Run Link Crawler right now? Note: this may take a long time.");
+        $tab_check->label = "&nbsp;";
+        $tabs = new InputfieldWrapper();
+        $tabs->add($tab_links);
+        $tabs->add($tab_redirects);
+        $tabs->add($tab_skipped_links);
+        $tabs->add($tab_check);
+
+        // table header row
+        $header_row = array(
+            __("URL"),
+            __("Pages"),
+            __("Status"),
+            __("Last checked"),
+            __("Skip"),
+            __("Comment"),
+            '', // placeholder
+        );
+
+        // table for broken links
+        $table = $this->modules->get('MarkupAdminDataTable');
+        $table->setEncodeEntities(false);
+        $table->setClass('links');
+        $table->headerRow($header_row);
+        $table->row(array());
+
+        // table for redirects
+        $table_redirects = clone $table;
+        $table_redirects->setClass('redirects');
+
+        // table for skipped links
+        $table_skipped = clone $table;
+        $table_skipped->setClass('skipped-links');
+
+        // prepare settings and markup templates
+        $comment = "<a class='action edit-comment' data-link='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment for this link") . "'></i></a>";
+        $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . __("Remove this link from list") . "'></i></a>";
+        $page_limit = 3;
+
+        // fetch links from database
+        $query = $this->database->query("
+            SELECT links.*, GROUP_CONCAT(DISTINCT links_pages.pages_id SEPARATOR '|') as page_ids 
+            FROM " . self::TABLE_LINKS . " links 
+            LEFT JOIN " . self::TABLE_LINKS_PAGES . " links_pages ON links_pages.links_id = links.id 
+            WHERE links.status IS NULL OR links.status >= 300
+            GROUP BY links.id
+            ORDER BY links.url
+        ");
+
+        while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
+
+            // string representation of this link itself
+            $url_str = $row['url'];
+            if ($row['location']) {
+                $url_str .= "<br /><small>" . $this->sanitizer->entities($row['location']) . "</small>";
+            }
+
+            // string representation of pages this link is found from
+            $pages_str = "";
+            if ($row['page_ids']) {
+                $page_ids = $this->sanitizer->text($row['page_ids']);
+                $pages = $this->pages->find("id={$page_ids}, limit={$page_limit}");
+                foreach ($pages as $page) {
+                    if ($pages_str) $pages_str .= "<br />";
+                    $pages_str .= "<a href='{$page->url}' target='_blank'>{$page->url}</a>";
+                }
+                $total = $pages->getTotal();
+                if ($total > $page_limit) {
+                    $pages_str .= html_entity_decode(sprintf(__("<br /><small>(+ %d more)</small>"), $total-$page_limit));
+                }
+            }
+            
+            // string representation of the status of this link
+            $status_error = __("Error checking this link");
+            $status_code = "<span title='{$status_error}'>" . __("none") . "</span>";
+            $status_str = "<div class='status status-none'>{$status_code}</div>";
+            if ($row['status']) {
+                $status_code = "<span title='" . $this->status_codes[$row['status']] . "'>{$row['status']}</span>";
+                $status_str = "<div class='status status-" . substr($row['status'], 0, 1) . "xx status-{$row['status']}'>{$status_code}</div>";
+            }
+
+            // construct table row
+            $table_row = array(
+                $url_str,
+                $pages_str,
+                $status_str,
+                $row['checked'],
+                "<input type='checkbox' name='skip' value='{$row['id']}'" . ($row['skip'] ? " checked='checked'" : "") . " />",
+                $row['comment'],
+                sprintf($comment, $row['id']) . sprintf($remove, $row['id']) 
+            );
+
+            // add table row to appropriate table
+            if ($row['skip']) {
+                $table_skipped->has_rows = true;
+                $table_skipped->row($table_row);
+            } else if ($row['status'] >= 300 && $row['status'] < 400) {
+                $table_redirects->has_rows = true;
+                $table_redirects->row($table_row);
+            } else {
+                $table->has_rows = true;
+                $table->row($table_row);
+            }
+                
+        }
+
+        // inject settings, translations etc.
+        $process = $this->modules->getModuleID($this->className());
+        $processPage = $this->pages->get("process=$process");
+        $this->config->js($this->className(), array(
+            'i18n' => array(
+                'commentPrompt' => __("Type in comment text for this revision (max 255 characters)"),
+            ),
+            'processPage' => $processPage->url(),
+        ));
+        
+        // render tables and insert into previously created tabs
+        $tab_links->markupText = $table->render();
+        $tab_redirects->markupText = $table_redirects->render();
+        $tab_skipped_links->markupText = $table_skipped->render();
+
+        // add content to check now tab
+        $src = $processPage->url() . "check?modal=1";
+        $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";
+        $button = wire('modules')->get('InputfieldButton');
+        $button->name = "check-now";
+        $button->value = __("Check now");
+        $tab_check->markupText = $button->render() . $iframe;
+
+        return $tabs->render();
+        
+    }
+
+    /**
+     * Set link comment text
+     * 
+     * Link is defined by POST param 'links_id' and comment text by POST
+     * param 'comment'.
+     *
+     * @throws WireException if link doesn't exist
+     * @return null|string Comment text or null
+     */
+    public function executeComment() {
+        
+        // this only applies to POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
+
+        // get and check link
+        $links_id = (int) $this->input->post->links_id;
+        $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE id = :links_id");
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $link = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$link) throw new WireException("Link doesn't exist: $links_id");
+
+        // sanitize and store comment text
+        $comment = $this->input->post->comment;
+        if (mb_strlen($comment) > 255) $comment = mb_substr($comment, 0, 255);
+        $comment = $this->database->escapeStr($comment);
+        $stmt = $this->database->prepare("UPDATE " . self::TABLE_LINKS . " SET comment = :comment WHERE id = :links_id");
+        $stmt->bindValue(':comment', $comment, PDO::PARAM_STR);
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        // return comment text
+        return $comment;
+
+    }
+
+    /**
+     * Set link skip status
+     * 
+     * Link is defined by POST param 'links_id' and skip status by POST
+     * param 'skip'.
+     *
+     * @throws WireException if link doesn't exist
+     * @return int skip status after operation
+     */
+    public function executeSkip() {
+        
+        // this only applies to POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
+
+        // get and check link
+        $links_id = (int) $this->input->post->links_id;
+        $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE id = :links_id");
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $link = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$link) throw new WireException("Link doesn't exist: $links_id");
+
+        // update skip status
+        $skip = $this->input->post->skip ? 1 : 0;
+        $stmt = $this->database->prepare("UPDATE " . self::TABLE_LINKS . " SET skip = :skip WHERE id = :links_id");
+        $stmt->bindValue(':skip', $skip, PDO::PARAM_STR);
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        // return skip status
+        return $skip;
+
+    }
+
+    /**
+     * Remove link from list
+     * 
+     * Link is defined by POST param 'links_id'.
+     *
+     * @throws WireException if link doesn't exist
+     */
+    public function executeRemove() {
+        
+        // this only applies to POST requests
+        if ($_SERVER['REQUEST_METHOD'] !== "POST") return;
+
+        // get and check link
+        $links_id = (int) $this->input->post->links_id;
+        $stmt = $this->database->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE id = :links_id");
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $link = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$link) throw new WireException("Link doesn't exist: $links_id");
+
+        // remove link and related row(s) from junction table
+        $stmt = $this->database->prepare("
+            DELETE links, links_pages 
+            FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
+            WHERE links.id = :links_id AND links_pages.links_id = links.id
+        ");
+        $stmt->bindValue(':links_id', $links_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+    }
+
+    /**
+     * Run link check (LinkCrawler) manually
+     * 
+     * This is a proof of concept. Much better solution would be triggering
+     * LinkCrawler via Cron.
+     *
+     * @return string Link Crawler output
+     */
+    public function executeCheck() {
+
+        // load scripts and styles
+        $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".js");
+        $this->config->styles->append($this->config->urls->{$this->className()} . $this->className() . ".css");
+
+        // override PHP time limit and disable user abort
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        // load and instantiate Link Crawler
+        require $this->config->paths->{$this->className()} . "LinkCrawler.php";
+        $options = array('log_level' => 4, 'log_on_screen' => true);
+        $crawler = new LinkCrawler($options);
+
+        // run Link Crawler and capture output
+        ob_start();
+        echo "<pre class='link-crawler-output'>";
+        $crawler->start();
+        $summary = vsprintf(
+            __("Done! %d/%d Pages and %d/%d links checked in %s seconds."),
+            array(
+                $crawler->stats['pages_checked'], 
+                $crawler->stats['pages'], 
+                $crawler->stats['links_checked'], 
+                $crawler->stats['links'], 
+                ($crawler->stats['time_end']-$crawler->stats['time_start'])
+            )
+        );
+        echo "</pre>";
+        echo "<script type='text/javascript'>$('.link-crawler-output').fadeIn(); parent.$('p.description').data('summary', '{$summary}').trigger('finished');</script>";
+        $out = ob_get_clean();
+
+        return $out;
+
+    }
+
+    /**
+     * When module is installed, create database tables for storing data
+     *
+     */
+    public function install() {
+
+        // table containing all found links
+        $this->createTable(self::TABLE_LINKS, array(
+            'id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY',
+            'url VARCHAR(255) NOT NULL UNIQUE',
+            'status CHAR(3)',
+            'location VARCHAR(255) DEFAULT NULL',
+            'skip BOOL DEFAULT FALSE',
+            'comment VARCHAR(255) DEFAULT NULL',
+            'checked TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            'KEY skip (skip)',
+        ));
+
+        // junction table connecting found links with pages
+        $this->createTable(self::TABLE_LINKS_PAGES, array(
+            'links_id INT UNSIGNED NOT NULL',
+            'pages_id INT UNSIGNED NOT NULL',
+            'PRIMARY KEY (links_id, pages_id)',
+        ));
+
+        // create a page for this module
+        $page = new Page();
+        $page->template = 'admin';
+        $page->name = self::PAGE_NAME; 
+        $page->process = $this; 
+        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+        $info = self::getModuleInfo();
+        $page->title = $this->_("Link Checker");
+        $page->save();
+
+        // tell user that we've created a new page
+        $this->message("Created Page: {$page->path}"); 
+
+    }
+
+    /**
+     * When module is uninstalled, drop database tables created during install
+     *
+     */
+    public function uninstall() {
+
+        // drop database tables
+        $this->dropTable(self::TABLE_LINKS);
+        $this->dropTable(self::TABLE_LINKS_PAGES);
+        
+        // find and delete the page we installed
+        $moduleID = $this->modules->getModuleID($this); 
+        $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
+        
+        // delete page
+        if ($page->id) {
+            $page->delete();
+            $this->message("Deleted Page: {$page->path}"); 
+        }
+
+    }
+    
+    /**
+     * Helper method for dropping tables
+     * 
+     * @param string $table Table name
+     */
+    protected function dropTable($table) {
+        $table = $this->database->escapeStr($table);
+        $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
+        $stmt->execute();
+        if (count($stmt->fetchAll()) == 1) {
+            $this->database->query("DROP TABLE $table");
+            $this->message("Dropped Table: $table");
+        }
+    }
+
+    /**
+     * Helper method for creating tables
+     *
+     * @param string $table Table name
+     * @param array $schema Table schema
+     * @throws WireDatabaseException if table already exists
+     */
+    protected function createTable($table, $schema) {
+        $table = $this->database->escapeStr($table);
+        $stmt = $this->database->prepare("SHOW TABLES LIKE '$table'");
+        $stmt->execute();
+        if (count($stmt->fetchAll()) == 1) {
+            throw new WireDatabaseException("Table $table already exists");
+        }
+        $sql = "CREATE TABLE $table (";
+        $sql .= implode(', ', $schema);
+        $sql .= ") ENGINE = MYISAM DEFAULT CHARSET=utf8";
+        $this->database->query($sql);
+        $this->message("Created Table: $table");
+    }
+
+}

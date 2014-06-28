@@ -1,0 +1,109 @@
+#content .container > ul.Inputfields {
+    position: relative;
+    top: -2px;
+}
+
+.AdminDataTable tr a.action,
+.AdminDataTable tr span {
+    display: inline-block;
+    margin: 0 0.25em;
+    width: 14px;
+}
+
+.AdminDataTable tr a.action {
+    opacity: 0.25;
+}
+
+.AdminDataTable tr small {
+    opacity: 0.75;
+}
+
+.AdminDataTable tr:hover a.action {
+    opacity: 1;
+}
+
+.AdminDataTable tr td:last-child {
+    text-align: center;
+    width: 4em;
+}
+
+.content .InputfieldHeader {
+    margin: 0;
+    padding: 0;
+    cursor: default;
+}
+
+.content p.description {
+    margin: 1em 0 0.5em 0;
+    font-size: 0.9em;
+}
+
+.status {
+    border-radius: 3px;
+    text-align: center;
+    font-size: 0.8em;
+    padding: 0 0.5em;
+    cursor: help;
+    color: #fff;
+}
+
+.status-none {
+    background: red;
+}
+
+.status-5xx {
+    background: red;
+}
+
+.status-4xx {
+    background: red;
+}
+
+.status-3xx {
+    background: orange;
+}
+
+.status-2xx {
+    background: green;
+}
+
+.status-1xx {
+    background: gray;
+}
+
+.AdminDataTable tr .status span {
+    width: 100%;
+    margin: 0;
+}
+
+button[name=check-now] {
+    margin: 1em 0 0 0
+}
+
+.link-crawler-container,
+.link-crawler-output {
+    width: 100%;
+    height: 600px;
+    color: #333;
+    background: #fff;
+}
+
+.link-crawler-container #title {
+    display: none;
+}
+
+.link-crawler-container {
+    border: 0;
+    margin: 2em 0 0 0;
+}
+
+.link-crawler-container.loading {
+    background: url('./loading.gif') 3em 0 no-repeat transparent;
+}
+
+.link-crawler-output {
+    padding: 1em;
+    display: none;
+    overflow: scroll;
+    border: 1px solid #ccc;
+}
