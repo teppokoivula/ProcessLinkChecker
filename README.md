@@ -4,13 +4,17 @@ ProcessLinkChecker
 Link Checking module for ProcessWire CMF/CMS
 Copyright (c) 2014, Teppo Koivula
 
-WARNING: THIS IS AN ALPHA RELEASE AND SHOULD NOT BE INSTALLED OR USED ON A PRODUCTION SITE. THIS NOTICE WILL BE REMOVED ONCE THE MODULE IS STABLE ENOUGH TO USE IN SUCH CONTEXT. UNTILL THEN, CONTINUE AT YOUR OWN RISK.
+WARNING: THIS IS AN ALPHA RELEASE AND SHOULD NOT BE INSTALLED OR USED ON A PRODUCTION SITE. THIS NOTICE WILL BE REMOVED ONCE THE MODULE IS CONSIDERED STABLE ENOUGH FOR USE IN SUCH CONTEXT. UNTIL THEN, CONTINUE AT YOUR OWN RISK.
 
 This module adds a link checker tool for ProcessWire. When the module is installed, it should add a new page under Admin > Setup > Link Checker. From this page you can review all broken and/or otherwise problematic links (server issues, unknown domains etc.) found during periodic crawls.
+
+## LinkCrawler
 
 Crawling the links is done by a tool called LinkCrawler. LinkCrawler is built as an external PHP class, but (at least for the time being) it requires ProcessWire to function. When started, it finds and renders all pages matching given selector (defined by settings, more about that later), renders them, uses simple regexp to find all links (any value given for href or src attributes of any element on the page) and then checks each link individually to see which headers it returns.
 
 In addition to basic status checking, LinkCrawler is capable of recursively tracking destination of 301 and 302 redirects and storing that information for later use. Note that, at the moment, only method LinkCrawler uses for getting this information is PHP's native get_headers(). The way it's implemented, adding more methods later isn't an issue.
+
+### Running the LinkCrawler
 
 LinkCrawler can be started directly from Process Link Checkers UI, but this can be very slow and resource-intensive task, which is why it really should be triggered periodically as a Cron task. For this purpose there's a file called LinkCrawlerInit.php included with Process Link Checker. This file is very simple and mostly just includes LinkCrawler.php and executes it, thus providing a simple way for Cron to init LinkCrawler:
 
@@ -18,7 +22,7 @@ LinkCrawler can be started directly from Process Link Checkers UI, but this can 
 
 (Note: your PHP path may vary, you might want to do something else with errors than redirect them to /dev/null etc. Consult your hosting company if youre unsure about setting up Cron tasks.)
 
-## Installing and configuring
+## Installing and configuring the module
 
 This module is installed just like any other ProcessWire module, so the common how-to guide (http://modules.processwire.com/install-uninstall/) explains most of it already.
 
