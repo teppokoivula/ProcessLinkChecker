@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.1.0
+ * @version 0.1.1
  *
  */
 class LinkCrawler {
@@ -29,10 +29,10 @@ class LinkCrawler {
      */
     protected $default_config = array(
         'skipped_links' => array(),
-        'cache_max_age' => '1 SECOND',
-        'selector' => 'status!=trash, template!=admin',
+        'cache_max_age' => '1 DAY',
+        'selector' => 'status!=trash, has_parent!=2',
         'http_host' => null,
-        'log_level' => null,
+        'log_level' => 1,
         'log_on_screen' => false,
         'max_recursion_depth' => 1,
         'sleep_between_requests' => 1,

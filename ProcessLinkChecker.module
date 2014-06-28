@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.0',
+            'version' => '0.1.1',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array('link-checker' => 'Access Link Checker'),
@@ -55,6 +55,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'http_host' => null,
             'log_level' => 1,
             'log_on_screen' => false,
+            'max_recursion_depth' => 1,
             'sleep_between_requests' => 1,
         );
     }
