@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.1',
+            'version' => '0.1.2',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array('link-checker' => 'Access Link Checker'),
@@ -51,12 +51,15 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         return array(
             'skipped_links' => array(),
             'cache_max_age' => '1 DAY',
-            'selector' => 'status!=trash, has_parent!=2',
+            'selector' => 'status!=trash, id!=2, has_parent!=2',
             'http_host' => null,
             'log_level' => 1,
             'log_on_screen' => false,
             'max_recursion_depth' => 1,
             'sleep_between_requests' => 1,
+            'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
+            'skip_link_regex' => null,
+            'http_request_method' => 'get_headers',
         );
     }
 
@@ -190,32 +193,74 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->description = __("Selector for finding pages to check for broken links.");
         $fields->add($field);
 
+        // link settings
+        $fieldset = wire('modules')->get('InputfieldFieldset');
+        $fieldset->label = __("Links");
+        $fieldset->icon = "link";
+        $fields->add($fieldset);
+
+        // link regex
+        $field = wire('modules')->get('InputfieldText');
+        $field->name = "link_regex";
+        $field->label = __("Link regex");
+        $field->columnWidth = 50;
+        $field->description = __("Used to identify checkable links from page content.");
+        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
+                      . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
+        $field->value = $data['link_regex'];
+        $fieldset->add($field);
+
+        // skip link regex
+        $field = wire('modules')->get('InputfieldText');
+        $field->name = "skip_link_regex";
+        $field->label = __("Skip link regex");
+        $field->columnWidth = 50;
+        $field->description = __("Used to identify links that should always be skipped.");
+        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
+        $field->value = $data['skip_link_regex'];
+        $fieldset->add($field);
+
         // skipped links
         $field = wire('modules')->get('InputfieldTextarea');
         $field->name = "skipped_links";
         $field->label = __("Skipped links");
-        $field->description = __("Links that should always be skipped, one per line.");
-        $field->notes = sprintf(__("Links pointing to admin pages (%s*) will always be skipped."), wire('config')->urls->admin);
-        $field->value = implode("\n", $data['skipped_links']);
-        $fields->add($field);
+        $field->description = __("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
+        if ($data['skipped_links']) $field->value = implode("\n", $data['skipped_links']);
+        $fieldset->add($field);
 
         // default http host
         $field = wire('modules')->get('InputfieldURL');
         $field->name = "http_host";
-        $field->label = __("Default HTTP host");
-        $field->description = __("Host to be prepended to relative URLs");
-        $field->notes = __("Relative URLs can't be checked unless default HTTP host (e.g. http://localhost/) is defined here.");
+        $field->label = __("HTTP host for relative URLs");
+        $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
         $field->value = $data['http_host'];
-        $fields->add($field);
+        $fieldset->add($field);
+
+        // conection settings
+        $fieldset = wire('modules')->get('InputfieldFieldset');
+        $fieldset->label = __("Connection");
+        $fieldset->icon = "cloud";
+        $fields->add($fieldset);
 
         // sleep between requests
         $field = wire('modules')->get('InputfieldInteger');
         $field->name = "sleep_between_requests";
         $field->label = __("Sleep between requests");
         $field->description = __("For how long should the crawler sleep between each request, in seconds?");
-        $field->notes = __("This setting is used to lessen the load to both local server (the one making the requests) and the opposite end. Default value is one second.");
+        $field->notes = __("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
         $field->value = $data['sleep_between_requests'];
-        $fields->add($field);
+        $fieldset->add($field);
+
+        // http request method
+        $field = wire('modules')->get('InputfieldSelect');
+        $field->name = "http_request_method";
+        $field->label = __("HTTP request method");
+        $field->notes = __("Default request method is get_headers().");
+        $field->addOptions(array(
+            'get_headers' => 'get_headers()',
+        ));
+        $field->value = $data['http_request_method'];
+        $fieldset->add($field);
 
         // caching settings
         $fieldset = wire('modules')->get('InputfieldFieldset');

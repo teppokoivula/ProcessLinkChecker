@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.1.1
+ * @version 0.1.2
  *
  */
 class LinkCrawler {
@@ -30,12 +30,15 @@ class LinkCrawler {
     protected $default_config = array(
         'skipped_links' => array(),
         'cache_max_age' => '1 DAY',
-        'selector' => 'status!=trash, has_parent!=2',
+        'selector' => 'status!=trash, id!=2, has_parent!=2',
         'http_host' => null,
         'log_level' => 1,
         'log_on_screen' => false,
         'max_recursion_depth' => 1,
         'sleep_between_requests' => 1,
+        'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
+        'skip_link_regex' => null,
+        'http_request_method' => 'get_headers',
     );
     
     /**
@@ -101,6 +104,7 @@ class LinkCrawler {
         $data = wire('modules')->getModuleConfigData('ProcessLinkChecker');
         $this->config = (object) array_merge($this->default_config, $default_data, $data, $options);
         // merge skipped and cached links from database with defaults
+        if (!$this->config->skipped_links) $this->config->skipped_links = array();
         $this->config->skipped_links = array_fill_keys($this->config->skipped_links, null);
         $interval = wire('database')->escapeStr($this->config->cache_max_age);
         $query = wire('database')->query("SELECT url FROM " . self::TABLE_LINKS . " WHERE skip = 1 OR checked > DATE_SUB(NOW(), INTERVAL $interval)");
@@ -161,8 +165,8 @@ class LinkCrawler {
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
         if (!$this->isCheckablePage($page)) return false;
-        // capture, iterate and check URLs (href and src attribute values)
-        preg_match_all("/(?:href|src)=(['\"])([^#].*?)\g{-2}/i", $page->render(), $matches);
+        // capture, iterate and check all links on page
+        preg_match_all($this->link_regex, $page->render(), $matches);
         if (count($matches)) {
             foreach (array_unique($matches[2]) as $url) {
                 ++$this->stats['links'];
@@ -285,9 +289,13 @@ class LinkCrawler {
             $this->log("SKIPPED URL: {$url} (found from skipped links)", 3);
             return false;
         }
+        if ($this->skip_link_regex && preg_match($this->skip_link_regex, $url)) {
+            $this->log("SKIPPED URL: {$url} (matches skip link regex)", 3);
+            return false;
+        }
         if (strpos($url, "//") === 0) {
-            // protocol-relative URL; prepend with http: for get_headers()
-            $url = "http:" . $url;
+            // protocol-relative URL; prepend with https: for get_headers()
+            $url = "https:" . $url;
         } else if (!preg_match("/^http[s]?:\/\//i", $url)) {
             // attempt to prefix relative URL with default HTTP host
             if (!$this->config->http_host) {
