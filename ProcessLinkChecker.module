@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.2',
+            'version' => '0.1.3',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array('link-checker' => 'Access Link Checker'),
@@ -207,6 +207,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->description = __("Used to identify checkable links from page content.");
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
                       . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
+        $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['link_regex'];
         $fieldset->add($field);
 
@@ -217,6 +218,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->columnWidth = 50;
         $field->description = __("Used to identify links that should always be skipped.");
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
+        $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['skip_link_regex'];
         $fieldset->add($field);
 
