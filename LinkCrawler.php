@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.1.2
+ * @version 0.1.3
  *
  */
 class LinkCrawler {
@@ -103,6 +103,8 @@ class LinkCrawler {
         $default_data = array_filter(ProcessLinkChecker::getDefaultData());
         $data = wire('modules')->getModuleConfigData('ProcessLinkChecker');
         $this->config = (object) array_merge($this->default_config, $default_data, $data, $options);
+        // link regex is required; use default value if null or empty
+        if (!$this->link_regex) $this->link_regex = $this->default_config['link_regex'];
         // merge skipped and cached links from database with defaults
         if (!$this->config->skipped_links) $this->config->skipped_links = array();
         $this->config->skipped_links = array_fill_keys($this->config->skipped_links, null);
