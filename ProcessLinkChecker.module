@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.3',
+            'version' => '0.1.4',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array('link-checker' => 'Access Link Checker'),
@@ -203,6 +203,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field = wire('modules')->get('InputfieldText');
         $field->name = "link_regex";
         $field->label = __("Link regex");
+        $field->required = true;
         $field->columnWidth = 50;
         $field->description = __("Used to identify checkable links from page content.");
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
@@ -353,19 +354,23 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // fieldset (tabs)
         $this->modules->get('JqueryWireTabs');
         $tab_links = new InputfieldMarkup();
+        $tab_links->attr('id', 'link-checker-broken-links');
         $tab_links->attr('title', __("Broken Links"));
-        $tab_links->description = __("Congratulations, no broken links found!");
+        $tab_links->description = __("Congratulations, no broken links found!") . " " . rand(0, 365);
         $tab_links->label = "&nbsp;";
         $tab_redirects = new InputfieldMarkup();
+        $tab_redirects->attr('id', 'link-checker-redirects');
         $tab_redirects->attr('title', __("Redirects"));
         $tab_redirects->description = __("No redirects have been identified yet.");
         $tab_redirects->label = "&nbsp;";
         $tab_skipped_links = new InputfieldMarkup();
+        $tab_skipped_links->attr('id', 'link-checker-skipped-links');
         $tab_skipped_links->attr('title', __("Skipped Links"));
         $tab_skipped_links->description = __("Not a single link has been marked as skipped so far!");
         $tab_skipped_links->label = "&nbsp;";
         $tab_check = new InputfieldMarkup();
         $tab_check->attr('title', __("Check now"));
+        $tab_check->attr('id', 'link-checker-check-now');
         $tab_check->description = __("Run Link Crawler right now? Note: this may take a long time.");
         $tab_check->label = "&nbsp;";
         $tabs = new InputfieldWrapper();
@@ -638,7 +643,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             )
         );
         echo "</pre>";
-        echo "<script type='text/javascript'>$('.link-crawler-output').fadeIn(); parent.$('p.description').data('summary', '{$summary}').trigger('finished');</script>";
+        echo "<script type='text/javascript'>$('.link-crawler-output').fadeIn(); parent.$('#link-checker-check-now p.description').trigger('finished', ['{$summary}']);</script>";
         $out = ob_get_clean();
 
         return $out;

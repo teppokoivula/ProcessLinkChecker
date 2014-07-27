@@ -21,8 +21,15 @@ $(function() {
                 .end()
             .remove();
         // display Link Crawler results when finished
-        $('p.description').on('finished', function() {
-            $(this).text($(this).data('summary'));
+        $('p.description').on('finished', function(event, summary) {
+            $(this).text(summary);
+            $.get('./', function(data) {
+                $data = $(data).find('[id^=link-checker-]:not(:last)');
+                $data.each(function() {
+                    $('#' + $(this).attr('id')).html($(this).html());
+                });
+                updateLinkTablePlaceholders();
+            });
         });
     });
 
@@ -87,10 +94,12 @@ $(function() {
 
     updateLinkTablePlaceholders();
 
-	// instantiate WireTabs
-	$('ul.Inputfields').WireTabs({
-		items: $(".Inputfields > .InputfieldMarkup"),
-		id: 'ProcessLinkCheckerTabs',
-	});
+    // instantiate WireTabs
+    if ($('ul.Inputfields').length) {
+        $('ul.Inputfields').WireTabs({
+            items: $(".Inputfields > .InputfieldMarkup"),
+            id: 'ProcessLinkCheckerTabs',
+        });
+    }
     
 });
