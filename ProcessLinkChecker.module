@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.4',
+            'version' => '0.1.5',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array('link-checker' => 'Access Link Checker'),
@@ -356,7 +356,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $tab_links = new InputfieldMarkup();
         $tab_links->attr('id', 'link-checker-broken-links');
         $tab_links->attr('title', __("Broken Links"));
-        $tab_links->description = __("Congratulations, no broken links found!") . " " . rand(0, 365);
+        $tab_links->description = __("Congratulations, no broken links found!");
         $tab_links->label = "&nbsp;";
         $tab_redirects = new InputfieldMarkup();
         $tab_redirects->attr('id', 'link-checker-redirects');
