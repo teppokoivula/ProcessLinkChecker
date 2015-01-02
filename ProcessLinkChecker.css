@@ -81,26 +81,29 @@ button[name=check-now] {
 
 .link-crawler-container,
 .link-crawler-output {
+    border: 0;
     width: 100%;
     color: #333;
     background: #fff;
     max-height: 600px;
+    transition: height 0.5s ease-in-out;
 }
 
+.link-crawler-container,
 .link-crawler-container #title {
     display: none;
 }
 
-.link-crawler-container {
-    border: 0;
-    height: 600px;
-    margin: 2em 0 0 0;
-}
-
 .link-crawler-container.loading {
+    height: 3em;
+    display: block;
+    margin-top: 2em;
     background: url('./loading.gif') 3em 0 no-repeat transparent;
 }
 
 .link-crawler-container.ready {
+    height: 600px;
+    display: block;
+    margin-top: 2em;
     border: 1px solid #eee;
 }
