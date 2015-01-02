@@ -14,7 +14,7 @@ ignore_user_abort(true);
 
 // bootstrap ProcessWire
 $root = $argv[1];
-if (is_null($root)) $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
+if ($root == '') $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
 require rtrim($root, "/") . "/index.php";
 
 // load and render Page
