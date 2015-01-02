@@ -13,7 +13,6 @@
  * http://processwire.com
  * 
  * @todo consider adding bulk actions 
- * 
  */
 class ProcessLinkChecker extends Process implements ConfigurableModule {
 
@@ -27,15 +26,14 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Process Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.1.5',
+            'version' => '0.2.0',
             'singular' => true,
             'autoload' => 'template=admin',
-            'permissions' => array('link-checker' => 'Access Link Checker'),
-            'icon' => 'link',
-            'requires' => array(
-                'ProcessWire>=2.4.1',
-                'PHP>=5.3.0',
+            'permissions' => array(
+                'link-checker' => 'Link Checker (access)',
+                'link-checker-run' => 'Link Checker (run)',
             ),
+            'icon' => 'link',
         ); 
     }
 
@@ -55,7 +53,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'http_host' => null,
             'log_level' => 1,
             'log_on_screen' => false,
-            'max_recursion_depth' => 1,
+            'max_recursion_depth' => 3,
             'sleep_between_requests' => 1,
             'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
             'skip_link_regex' => null,
@@ -368,16 +366,18 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $tab_skipped_links->attr('title', __("Skipped Links"));
         $tab_skipped_links->description = __("Not a single link has been marked as skipped so far!");
         $tab_skipped_links->label = "&nbsp;";
-        $tab_check = new InputfieldMarkup();
-        $tab_check->attr('title', __("Check now"));
-        $tab_check->attr('id', 'link-checker-check-now');
-        $tab_check->description = __("Run Link Crawler right now? Note: this may take a long time.");
-        $tab_check->label = "&nbsp;";
         $tabs = new InputfieldWrapper();
         $tabs->add($tab_links);
         $tabs->add($tab_redirects);
         $tabs->add($tab_skipped_links);
-        $tabs->add($tab_check);
+        if ($this->user->hasPermission('link-checker-run')) {
+            $tab_check = new InputfieldMarkup();
+            $tab_check->attr('title', __("Check now"));
+            $tab_check->attr('id', 'link-checker-check-now');
+            $tab_check->description = __("Run Link Crawler right now? Note: this may take a long time.");
+            $tab_check->label = "&nbsp;";
+            $tabs->add($tab_check);
+        }
 
         // table header row
         $header_row = array(
@@ -432,7 +432,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             $pages_str = "";
             if ($row['page_ids']) {
                 $page_ids = $this->sanitizer->text($row['page_ids']);
-                $pages = $this->pages->find("id={$page_ids}, limit={$page_limit}");
+                $pages = $this->pages->find("id={$page_ids}, limit={$page_limit}, include=all");
                 foreach ($pages as $page) {
                     if ($pages_str) $pages_str .= "<br />";
                     $pages_str .= "<a href='{$page->url}' target='_blank'>{$page->url}</a>";

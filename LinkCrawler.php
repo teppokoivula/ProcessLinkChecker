@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.1.3
+ * @version 0.2.0
  *
  */
 class LinkCrawler {
@@ -34,7 +34,7 @@ class LinkCrawler {
         'http_host' => null,
         'log_level' => 1,
         'log_on_screen' => false,
-        'max_recursion_depth' => 1,
+        'max_recursion_depth' => 3,
         'sleep_between_requests' => 1,
         'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
         'skip_link_regex' => null,
@@ -59,6 +59,33 @@ class LinkCrawler {
      *
      */
     protected $config = null;
+
+    /**
+     * ProcessWire root directory
+     *
+     */
+    protected $root = null;
+
+    /**
+     * Render method
+     * 
+     * Render method is only configurable by editing this file at the moment,
+     * for various safety and compatibility reasons. Available options:
+     *     - render_page
+     *     - render_fields
+     *     - shell_exec
+     */
+    protected $render_method = 'render_page';
+    
+    /**
+     * Additional settings for the 'shell_exec' render method
+     * 
+     * Render file is the path of the PHP file used to render pages, while PHP
+     * binary is the path of the PHP binary itself.
+     *
+     */
+    protected $render_file = null;
+    protected $php_binary = '/usr/bin/php';
     
     /**
      * Array of checked links (required by run-time caching)
@@ -98,6 +125,7 @@ class LinkCrawler {
             if (is_null($root)) $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
             require rtrim($root, "/") . "/index.php";
         }
+        $this->root = $root;
         // setup config object (use values from local defaults, Process Link
         // Checker defaults, Process Link Checker config and $options array)
         $default_data = array_filter(ProcessLinkChecker::getDefaultData());
@@ -105,6 +133,14 @@ class LinkCrawler {
         $this->config = (object) array_merge($this->default_config, $default_data, $data, $options);
         // link regex is required; use default value if null or empty
         if (!$this->link_regex) $this->link_regex = $this->default_config['link_regex'];
+        // validate regex settings.. with more regex
+        $valid_regex = '/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/';
+        if (!preg_match($valid_regex, $this->link_regex)) {
+            throw new Exception("invalid link_regex");
+        }
+        if ($this->skip_link_regex && !preg_match($valid_regex, $this->skip_link_regex)) {
+            throw new Exception("invalid skip_link_regex");
+        }
         // merge skipped and cached links from database with defaults
         if (!$this->config->skipped_links) $this->config->skipped_links = array();
         $this->config->skipped_links = array_fill_keys($this->config->skipped_links, null);
@@ -114,6 +150,14 @@ class LinkCrawler {
         if (count($links)) {
             $this->config->skipped_links = array_merge($this->config->skipped_links, array_fill_keys($links, null));
         }
+        // set default stream context options for get_headers()
+        // @todo do we really want to implement custom code to follow redirects?
+        stream_context_set_default(array(
+            'http' => array(
+                'follow_location' => 0,
+                'max_redirects' => 0,
+            ),
+        ));
         // prepare PDO statements for later use
         $this->stmt_select_id = wire('database')->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE url = :url LIMIT 1");
         $this->stmt_insert_links = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS . " (url, status, location) VALUES (:url, :status, :location) ON DUPLICATE KEY UPDATE url = VALUES(url), status = VALUES(status), location = VALUES(location), checked = NOW()");
@@ -163,17 +207,64 @@ class LinkCrawler {
      * 
      * @param Page $page
      * @return bool whether or not a Page was checked
+     * @todo check if fatal errors could be logged and/or sent to admin with shell_exec method
      */
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
         if (!$this->isCheckablePage($page)) return false;
         // capture, iterate and check all links on page
-        preg_match_all($this->link_regex, $page->render(), $matches);
-        if (count($matches)) {
-            foreach (array_unique($matches[2]) as $url) {
-                ++$this->stats['links'];
-                if ($this->checkURL($url, $page) !== false) {
-                    ++$this->stats['links_checked'];
+        $data = "";
+        switch ($this->render_method) {
+            case 'render_page':
+                $data = $page->render();
+                break;
+            case 'render_fields':
+                foreach ($page->template->fields as $field) {
+                    $field_value = $page->get($field->name);
+                    if (is_object($field_value)) {
+                        try {
+                            $field_value = $field_value->render();
+                        } catch (Exception $e) {
+                            $field_value = (string) $field_value;
+                        }
+                    }
+                    $data .= $field_value;
+                }
+                break;
+            case 'shell_exec':
+                if (!$this->php_binary) {
+                    if (version_compare(PHP_VERSION, "5.4.0") >= 0 && defined("PHP_BINARY")) {
+                        $this->php_binary = PHP_BINARY;
+                    } else {
+                        throw new Exception("PHP binary not defined");
+                    }
+                }
+                if (!$this->render_file) {
+                    $this->render_file = __DIR__ . '/Render.php';
+                    if (!is_file($this->render_file)) {
+                        throw new Exception("Render file not found");
+                    }
+                }
+                $command = escapeshellcmd(sprintf(
+                    '%s %s %s %s 2>/dev/null',
+                    escapeshellarg($this->php_binary),
+                    escapeshellarg($this->render_file),
+                    escapeshellarg($this->root),
+                    escapeshellarg((int) $page->id)
+                ));
+                $data = shell_exec($command);
+                break;
+            default:
+                throw new Exception("Unrecognized render method");
+        }
+        if ($data) {
+            preg_match_all($this->link_regex, $data, $matches);
+            if (count($matches)) {
+                foreach (array_unique($matches[2]) as $url) {
+                    ++$this->stats['links'];
+                    if ($this->checkURL($url, $page) !== false) {
+                        ++$this->stats['links_checked'];
+                    }
                 }
             }
         }
@@ -203,6 +294,8 @@ class LinkCrawler {
             while ($rec_depth < $this->config->max_recursion_depth && $rec_headers['location']) {
                 ++$rec_depth;
                 $rec_url = $rec_headers['location'];
+                // @todo if get_headers() is allowed to follow_location, something like this is required:
+                // if (is_array($rec_url)) $rec_url = array_pop($rec_url);
                 $rec_headers = $this->getHeaders($rec_url);
                 if ($rec_headers['status'] != 301 && $rec_headers['status'] != 302) {
                     // update location only if non-redirect location was found

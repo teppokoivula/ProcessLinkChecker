@@ -2,7 +2,7 @@ ProcessLinkChecker
 ==================
 
 Link Checking module for ProcessWire CMF/CMS
-Copyright (c) 2014, Teppo Koivula
+Copyright (c) 2014-2015, Teppo Koivula
 
 WARNING: THIS IS AN ALPHA RELEASE AND SHOULD NOT BE INSTALLED OR USED ON A PRODUCTION SITE. THIS NOTICE WILL BE REMOVED ONCE THE MODULE IS CONSIDERED STABLE ENOUGH FOR USE IN SUCH CONTEXT. UNTIL THEN, CONTINUE AT YOUR OWN RISK.
 
@@ -16,9 +16,9 @@ In addition to basic status checking, LinkCrawler is capable of recursively trac
 
 ### Running the LinkCrawler
 
-LinkCrawler can be started directly from Process Link Checkers UI, but this can be very slow and resource-intensive task, which is why it really should be triggered periodically as a Cron task. For this purpose there's a file called LinkCrawlerInit.php included with Process Link Checker. This file is very simple and mostly just includes LinkCrawler.php and executes it, thus providing a simple way for Cron to init LinkCrawler:
+LinkCrawler can be started directly from Process Link Checkers UI, but this can be very slow and resource-intensive task, which is why it really should be triggered periodically as a Cron task. For this purpose there's a file called Init.php included with Process Link Checker. This file is very simple and mostly just includes LinkCrawler.php and executes it, thus providing a simple way for Cron to init LinkCrawler:
 
-`0 0 * * * /usr/bin/php /path/to/site/modules/ProcessLinkChecker/LinkCrawlerInit.php >/dev/null 2>&1`
+`0 0 * * * /usr/bin/php /path/to/site/modules/ProcessLinkChecker/Init.php >/dev/null 2>&1`
 
 (Note: your PHP path may vary, you might want to do something else with errors than redirect them to /dev/null etc. Consult your hosting company if youre unsure about setting up Cron tasks.)
 
@@ -26,7 +26,7 @@ LinkCrawler can be started directly from Process Link Checkers UI, but this can 
 
 This module is installed just like any other ProcessWire module, so the common how-to guide (http://modules.processwire.com/install-uninstall/) explains most of it already.
 
-One notable thing is that when installed, the module will add permission 'link-checker'. If you want users (other than superusers) to see Link Checker page under Admin > Setup, you'll have to give their roles this permission.
+One notable thing is that when installed, the module will add permissions 'link-checker' and 'link-checker-run'. If you want users (other than superusers) to see Link Checker page under Admin > Setup, you'll have to give one of their roles the 'link-checker' permission. If you also want them to be able execute Link Checker right from the ProcessWire Admin, they'll need the 'link-checker-run' permission.
 
 ## Options
 
