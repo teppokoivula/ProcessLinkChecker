@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.2.2',
+            'version' => '0.2.3',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -175,7 +175,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $cache_count = (int) $cache_query->fetchColumn();
         if (wire('input')->post->_clear_cache) {
             wire('database')->query("DELETE FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
-            wire('session')->message(sprintf($this->_("Cleared cache for %d links"), $cache_count));
+            wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
             wire('session')->redirect($_SERVER['REQUEST_URI'], false);
         }
 
@@ -186,26 +186,26 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             $field = wire('modules')->get('InputfieldText');
         }
         $field->name = "selector";
-        $field->label = $this->_("Selector");
+        $field->label = __("Selector");
         $field->value = $data['selector'];
-        $field->description = $this->_("Selector for finding pages to check for broken links.");
+        $field->description = __("Selector for finding pages to check for broken links.");
         $fields->add($field);
 
         // link settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = $this->_("Links");
+        $fieldset->label = __("Links");
         $fieldset->icon = "link";
         $fields->add($fieldset);
 
         // link regex
         $field = wire('modules')->get('InputfieldText');
         $field->name = "link_regex";
-        $field->label = $this->_("Link regex");
+        $field->label = __("Link regex");
         $field->required = true;
         $field->columnWidth = 50;
-        $field->description = $this->_("Used to identify checkable links from page content.");
-        $field->notes = $this->_("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
-                      . sprintf(" " . $this->_("Default: %s."), $defaults['link_regex']);
+        $field->description = __("Used to identify checkable links from page content.");
+        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
+                      . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['link_regex'];
         $fieldset->add($field);
@@ -213,10 +213,10 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // skip link regex
         $field = wire('modules')->get('InputfieldText');
         $field->name = "skip_link_regex";
-        $field->label = $this->_("Skip link regex");
+        $field->label = __("Skip link regex");
         $field->columnWidth = 50;
-        $field->description = $this->_("Used to identify links that should always be skipped.");
-        $field->notes = $this->_("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
+        $field->description = __("Used to identify links that should always be skipped.");
+        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['skip_link_regex'];
         $fieldset->add($field);
@@ -224,39 +224,39 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // skipped links
         $field = wire('modules')->get('InputfieldTextarea');
         $field->name = "skipped_links";
-        $field->label = $this->_("Skipped links");
-        $field->description = $this->_("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
+        $field->label = __("Skipped links");
+        $field->description = __("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
         if ($data['skipped_links']) $field->value = implode("\n", $data['skipped_links']);
         $fieldset->add($field);
 
         // default http host
         $field = wire('modules')->get('InputfieldURL');
         $field->name = "http_host";
-        $field->label = $this->_("HTTP host for relative URLs");
-        $field->description = $this->_("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
+        $field->label = __("HTTP host for relative URLs");
+        $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
         $field->value = $data['http_host'];
         $fieldset->add($field);
 
         // conection settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = $this->_("Connection");
+        $fieldset->label = __("Connection");
         $fieldset->icon = "cloud";
         $fields->add($fieldset);
 
         // sleep between requests
         $field = wire('modules')->get('InputfieldInteger');
         $field->name = "sleep_between_requests";
-        $field->label = $this->_("Sleep between requests");
-        $field->description = $this->_("For how long should the crawler sleep between each request, in seconds?");
-        $field->notes = $this->_("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
+        $field->label = __("Sleep between requests");
+        $field->description = __("For how long should the crawler sleep between each request, in seconds?");
+        $field->notes = __("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
         $field->value = $data['sleep_between_requests'];
         $fieldset->add($field);
 
         // http request method
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "http_request_method";
-        $field->label = $this->_("HTTP request method");
-        $field->notes = $this->_("Default request method is get_headers().");
+        $field->label = __("HTTP request method");
+        $field->notes = __("Default request method is get_headers().");
         $field->addOptions(array(
             'get_headers' => 'get_headers()',
         ));
@@ -265,39 +265,39 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
 
         // caching settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = $this->_("Caching");
+        $fieldset->label = __("Caching");
         $fieldset->icon = "database";
         $fields->add($fieldset);
 
         // cache max age
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "cache_max_age";
-        $field->label = $this->_("Cache max age");
-        $field->description = $this->_("How long should we wait before checking a previously checked link again?");
-        $field->addOption('1 DAY', $this->_("1 day"));
-        $field->addOption('1 WEEK', $this->_("1 week"));
-        $field->addOption('2 WEEK', $this->_("2 weeks"));
-        $field->addOption('1 MONTH', $this->_("1 month"));
+        $field->label = __("Cache max age");
+        $field->description = __("How long should we wait before checking a previously checked link again?");
+        $field->addOption('1 DAY', __("1 day"));
+        $field->addOption('1 WEEK', __("1 week"));
+        $field->addOption('2 WEEK', __("2 weeks"));
+        $field->addOption('1 MONTH', __("1 month"));
         $field->value = $data['cache_max_age'];
         $fieldset->add($field);
 
         // clear cache now
         $field = wire('modules')->get('InputfieldCheckbox');
         $field->name = "_clear_cache";
-        $field->label = $this->_("Clear cache now");
-        $field->notes = sprintf($this->_("Total of **%d** links are currently cached."), $cache_count);
+        $field->label = __("Clear cache now");
+        $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
         $fieldset->add($field);
 
         // log level
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "log_level";
-        $field->label = $this->_("Log level");
-        $field->description = $this->_("Define how much gets logged by crawler.");
-        $field->addOption('0', $this->_("Nothing (no logging)"));
-        $field->addOption('1', $this->_("Start of each crawl"));
-        $field->addOption('2', $this->_("Crawled pages"));
-        $field->addOption('3', $this->_("Crawled pages and found URLs"));
-        $field->addOption('4', $this->_("Crawled pages, found URLs and recursively checked URLs"));
+        $field->label = __("Log level");
+        $field->description = __("Define how much gets logged by crawler.");
+        $field->addOption('0', __("Nothing (no logging)"));
+        $field->addOption('1', __("Start of each crawl"));
+        $field->addOption('2', __("Crawled pages"));
+        $field->addOption('3', __("Crawled pages and found URLs"));
+        $field->addOption('4', __("Crawled pages, found URLs and recursively checked URLs"));
         $field->value = $data['log_level'];
         $fields->add($field);
 
