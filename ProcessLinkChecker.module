@@ -23,10 +23,10 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      */
     public static function getModuleInfo() {
         return array(
-            'title' => 'Process Link Checker',
+            'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.2.1',
+            'version' => '0.2.2',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -175,7 +175,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $cache_count = (int) $cache_query->fetchColumn();
         if (wire('input')->post->_clear_cache) {
             wire('database')->query("DELETE FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
-            wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
+            wire('session')->message(sprintf($this->_("Cleared cache for %d links"), $cache_count));
             wire('session')->redirect($_SERVER['REQUEST_URI'], false);
         }
 
@@ -186,26 +186,26 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             $field = wire('modules')->get('InputfieldText');
         }
         $field->name = "selector";
-        $field->label = __("Selector");
+        $field->label = $this->_("Selector");
         $field->value = $data['selector'];
-        $field->description = __("Selector for finding pages to check for broken links.");
+        $field->description = $this->_("Selector for finding pages to check for broken links.");
         $fields->add($field);
 
         // link settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = __("Links");
+        $fieldset->label = $this->_("Links");
         $fieldset->icon = "link";
         $fields->add($fieldset);
 
         // link regex
         $field = wire('modules')->get('InputfieldText');
         $field->name = "link_regex";
-        $field->label = __("Link regex");
+        $field->label = $this->_("Link regex");
         $field->required = true;
         $field->columnWidth = 50;
-        $field->description = __("Used to identify checkable links from page content.");
-        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
-                      . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
+        $field->description = $this->_("Used to identify checkable links from page content.");
+        $field->notes = $this->_("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
+                      . sprintf(" " . $this->_("Default: %s."), $defaults['link_regex']);
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['link_regex'];
         $fieldset->add($field);
@@ -213,10 +213,10 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // skip link regex
         $field = wire('modules')->get('InputfieldText');
         $field->name = "skip_link_regex";
-        $field->label = __("Skip link regex");
+        $field->label = $this->_("Skip link regex");
         $field->columnWidth = 50;
-        $field->description = __("Used to identify links that should always be skipped.");
-        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
+        $field->description = $this->_("Used to identify links that should always be skipped.");
+        $field->notes = $this->_("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data['skip_link_regex'];
         $fieldset->add($field);
@@ -224,39 +224,39 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // skipped links
         $field = wire('modules')->get('InputfieldTextarea');
         $field->name = "skipped_links";
-        $field->label = __("Skipped links");
-        $field->description = __("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
+        $field->label = $this->_("Skipped links");
+        $field->description = $this->_("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
         if ($data['skipped_links']) $field->value = implode("\n", $data['skipped_links']);
         $fieldset->add($field);
 
         // default http host
         $field = wire('modules')->get('InputfieldURL');
         $field->name = "http_host";
-        $field->label = __("HTTP host for relative URLs");
-        $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
+        $field->label = $this->_("HTTP host for relative URLs");
+        $field->description = $this->_("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
         $field->value = $data['http_host'];
         $fieldset->add($field);
 
         // conection settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = __("Connection");
+        $fieldset->label = $this->_("Connection");
         $fieldset->icon = "cloud";
         $fields->add($fieldset);
 
         // sleep between requests
         $field = wire('modules')->get('InputfieldInteger');
         $field->name = "sleep_between_requests";
-        $field->label = __("Sleep between requests");
-        $field->description = __("For how long should the crawler sleep between each request, in seconds?");
-        $field->notes = __("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
+        $field->label = $this->_("Sleep between requests");
+        $field->description = $this->_("For how long should the crawler sleep between each request, in seconds?");
+        $field->notes = $this->_("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
         $field->value = $data['sleep_between_requests'];
         $fieldset->add($field);
 
         // http request method
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "http_request_method";
-        $field->label = __("HTTP request method");
-        $field->notes = __("Default request method is get_headers().");
+        $field->label = $this->_("HTTP request method");
+        $field->notes = $this->_("Default request method is get_headers().");
         $field->addOptions(array(
             'get_headers' => 'get_headers()',
         ));
@@ -265,39 +265,39 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
 
         // caching settings
         $fieldset = wire('modules')->get('InputfieldFieldset');
-        $fieldset->label = __("Caching");
+        $fieldset->label = $this->_("Caching");
         $fieldset->icon = "database";
         $fields->add($fieldset);
 
         // cache max age
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "cache_max_age";
-        $field->label = __("Cache max age");
-        $field->description = __("How long should we wait before checking a previously checked link again?");
-        $field->addOption('1 DAY', __("1 day"));
-        $field->addOption('1 WEEK', __("1 week"));
-        $field->addOption('2 WEEK', __("2 weeks"));
-        $field->addOption('1 MONTH', __("1 month"));
+        $field->label = $this->_("Cache max age");
+        $field->description = $this->_("How long should we wait before checking a previously checked link again?");
+        $field->addOption('1 DAY', $this->_("1 day"));
+        $field->addOption('1 WEEK', $this->_("1 week"));
+        $field->addOption('2 WEEK', $this->_("2 weeks"));
+        $field->addOption('1 MONTH', $this->_("1 month"));
         $field->value = $data['cache_max_age'];
         $fieldset->add($field);
 
         // clear cache now
         $field = wire('modules')->get('InputfieldCheckbox');
         $field->name = "_clear_cache";
-        $field->label = __("Clear cache now");
-        $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
+        $field->label = $this->_("Clear cache now");
+        $field->notes = sprintf($this->_("Total of **%d** links are currently cached."), $cache_count);
         $fieldset->add($field);
 
         // log level
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "log_level";
-        $field->label = __("Log level");
-        $field->description = __("Define how much gets logged by crawler.");
-        $field->addOption('0', __("Nothing (no logging)"));
-        $field->addOption('1', __("Start of each crawl"));
-        $field->addOption('2', __("Crawled pages"));
-        $field->addOption('3', __("Crawled pages and found URLs"));
-        $field->addOption('4', __("Crawled pages, found URLs and recursively checked URLs"));
+        $field->label = $this->_("Log level");
+        $field->description = $this->_("Define how much gets logged by crawler.");
+        $field->addOption('0', $this->_("Nothing (no logging)"));
+        $field->addOption('1', $this->_("Start of each crawl"));
+        $field->addOption('2', $this->_("Crawled pages"));
+        $field->addOption('3', $this->_("Crawled pages and found URLs"));
+        $field->addOption('4', $this->_("Crawled pages, found URLs and recursively checked URLs"));
         $field->value = $data['log_level'];
         $fields->add($field);
 
@@ -353,18 +353,18 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $this->modules->get('JqueryWireTabs');
         $tab_links = new InputfieldMarkup();
         $tab_links->attr('id', 'link-checker-broken-links');
-        $tab_links->attr('title', __("Broken Links"));
-        $tab_links->description = __("Congratulations, no broken links found!");
+        $tab_links->attr('title', $this->_("Broken Links"));
+        $tab_links->description = $this->_("Congratulations, no broken links found!");
         $tab_links->label = "&nbsp;";
         $tab_redirects = new InputfieldMarkup();
         $tab_redirects->attr('id', 'link-checker-redirects');
-        $tab_redirects->attr('title', __("Redirects"));
-        $tab_redirects->description = __("No redirects have been identified yet.");
+        $tab_redirects->attr('title', $this->_("Redirects"));
+        $tab_redirects->description = $this->_("No redirects have been identified yet.");
         $tab_redirects->label = "&nbsp;";
         $tab_skipped_links = new InputfieldMarkup();
         $tab_skipped_links->attr('id', 'link-checker-skipped-links');
-        $tab_skipped_links->attr('title', __("Skipped Links"));
-        $tab_skipped_links->description = __("Not a single link has been marked as skipped so far!");
+        $tab_skipped_links->attr('title', $this->_("Skipped Links"));
+        $tab_skipped_links->description = $this->_("Not a single link has been marked as skipped so far!");
         $tab_skipped_links->label = "&nbsp;";
         $tabs = new InputfieldWrapper();
         $tabs->add($tab_links);
@@ -372,21 +372,21 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $tabs->add($tab_skipped_links);
         if ($this->user->hasPermission('link-checker-run')) {
             $tab_check = new InputfieldMarkup();
-            $tab_check->attr('title', __("Check now"));
+            $tab_check->attr('title', $this->_("Check now"));
             $tab_check->attr('id', 'link-checker-check-now');
-            $tab_check->description = __("Run Link Crawler right now? Note: this may take a long time.");
+            $tab_check->description = $this->_("Run Link Crawler right now? Note: this may take a long time.");
             $tab_check->label = "&nbsp;";
             $tabs->add($tab_check);
         }
 
         // table header row
         $header_row = array(
-            __("URL"),
-            __("Pages"),
-            __("Status"),
-            __("Last checked"),
-            __("Skip"),
-            __("Comment"),
+            $this->_("URL"),
+            $this->_("Pages"),
+            $this->_("Status"),
+            $this->_("Last checked"),
+            $this->_("Skip"),
+            $this->_("Comment"),
             '', // placeholder
         );
 
@@ -406,8 +406,8 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $table_skipped->setClass('skipped-links');
 
         // prepare settings and markup templates
-        $comment = "<a class='action edit-comment' data-link='%d' href='#'><i class='fa fa-edit' title='" . __("Edit comment for this link") . "'></i></a>";
-        $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . __("Remove this link from list") . "'></i></a>";
+        $comment = "<a class='action edit-comment' data-link='%d' href='#'><i class='fa fa-edit' title='" . $this->_("Edit comment for this link") . "'></i></a>";
+        $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . $this->_("Remove this link from list") . "'></i></a>";
         $page_limit = 3;
 
         // fetch links from database
@@ -439,13 +439,13 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
                 }
                 $total = $pages->getTotal();
                 if ($total > $page_limit) {
-                    $pages_str .= html_entity_decode(sprintf(__("<br /><small>(+ %d more)</small>"), $total-$page_limit));
+                    $pages_str .= html_entity_decode(sprintf($this->_("<br /><small>(+ %d more)</small>"), $total-$page_limit));
                 }
             }
             
             // string representation of the status of this link
-            $status_error = __("Error checking this link");
-            $status_code = "<span title='{$status_error}'>" . __("none") . "</span>";
+            $status_error = $this->_("Error checking this link");
+            $status_code = "<span title='{$status_error}'>" . $this->_("none") . "</span>";
             $status_str = "<div class='status status-none'>{$status_code}</div>";
             if ($row['status']) {
                 $status_code = "<span title='" . $this->status_codes[$row['status']] . "'>{$row['status']}</span>";
@@ -482,7 +482,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $processPage = $this->pages->get("process=$process");
         $this->config->js($this->className(), array(
             'i18n' => array(
-                'commentPrompt' => __("Type in comment text for this revision (max 255 characters)"),
+                'commentPrompt' => $this->_("Type in comment text for this revision (max 255 characters)"),
             ),
             'processPage' => $processPage->url(),
         ));
@@ -497,7 +497,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";
         $button = wire('modules')->get('InputfieldButton');
         $button->name = "check-now";
-        $button->value = __("Check now");
+        $button->value = $this->_("Check now");
         $tab_check->markupText = $button->render() . $iframe;
 
         return $tabs->render();
@@ -633,7 +633,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         echo "<pre class='link-crawler-output'>";
         $crawler->start();
         $summary = vsprintf(
-            __("Done! %d/%d Pages and %d/%d links checked in %s seconds."),
+            $this->_("Done! %d/%d Pages and %d/%d links checked in %s seconds."),
             array(
                 $crawler->stats['pages_checked'], 
                 $crawler->stats['pages'], 
