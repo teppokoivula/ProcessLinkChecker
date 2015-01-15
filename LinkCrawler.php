@@ -14,11 +14,12 @@
  * @todo consider storing link texts to pages table (SEO analysis etc.)
  * @todo consider adding (separate) domain-based throttling
  * @todo consider adding support for regexp skip links
+ * @todo make user_agent configurable (options/string)
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.2.0
+ * @version 0.3.0
  *
  */
 class LinkCrawler {
@@ -52,6 +53,13 @@ class LinkCrawler {
         'pages_checked' => 0,
         'links' => 0,
         'links_checked' => 0,
+        'status' => array(
+            '1xx' => 0,
+            '2xx' => 0,
+            '3xx' => 0,
+            '4xx' => 0,
+            '5xx' => 0,
+        ),
     );
 
     /**
@@ -88,10 +96,16 @@ class LinkCrawler {
     protected $php_binary = '/usr/bin/php';
     
     /**
-     * Array of checked links (required by run-time caching)
+     * Array of checked links (required for run-time caching)
      * 
      */
     protected $checked_links = array();
+
+    /**
+     * Array of skipped links (required for run-time caching)
+     * 
+     */
+    protected $skipped_links = array();
 
     /**
      * Placeholders for prepared PDO statements
@@ -156,6 +170,7 @@ class LinkCrawler {
             'http' => array(
                 'follow_location' => 0,
                 'max_redirects' => 0,
+                'user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
             ),
         ));
         // prepare PDO statements for later use
@@ -172,7 +187,7 @@ class LinkCrawler {
      * 
      */
     public function start() {
-        $this->stats['time_start'] = microtime(true);
+        $this->stats['time_start'] = time();
         // prepare for logging
         if ($this->config->log_level) {
             @unlink($this->log());
@@ -195,8 +210,20 @@ class LinkCrawler {
                 ++$this->stats['pages_checked'];
             }
         }
-        $this->stats['time_end'] = microtime(true);
-        $this->log("END: {$this->stats['pages_checked']}/{$this->stats['pages']} Pages and {$this->stats['links_checked']}/{$this->stats['links']} links checked in " . ($this->stats['time_end']-$this->stats['time_start']) . " seconds");
+        $status_breakdown = array();
+        foreach ($this->stats['status'] as $status => $count) {
+            $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
+        }
+        $time = wireRelativeTimeStr($this->stats['time_start']);
+        $this->log(sprintf(
+            "END: %d/%d Pages and %d/%d links checked in %s. Status breakdown: %s.",
+            $this->stats['pages_checked'],
+            $this->stats['pages'],
+            $this->stats['links_checked'],
+            $this->stats['links'],
+            substr($time, 0, strpos($time, " ", strpos($time, " ")+1)),
+            implode(", ", $status_breakdown)
+        ));
     }
 
     /**
@@ -262,8 +289,15 @@ class LinkCrawler {
             if (count($matches)) {
                 foreach (array_unique($matches[2]) as $url) {
                     ++$this->stats['links'];
-                    if ($this->checkURL($url, $page) !== false) {
+                    if (($status = $this->checkURL($url, $page)) !== false) {
                         ++$this->stats['links_checked'];
+                        switch (substr($status, 0, 1)) {
+                            case 1: ++$this->stats['status']['1xx']; break;
+                            case 2: ++$this->stats['status']['2xx']; break;
+                            case 3: ++$this->stats['status']['3xx']; break;
+                            case 4: ++$this->stats['status']['4xx']; break;
+                            case 5: ++$this->stats['status']['5xx']; break;
+                        }
                     }
                 }
             }
@@ -357,6 +391,12 @@ class LinkCrawler {
      * @return bool|string false if URL can't be checked, otherwise URL itself
      */
     protected function isCheckableURL($url, $page) {
+        if (isset($this->skipped_links[$url])) {
+            // link has already been checked and found non-checkable
+            $this->log("SKIPPED URL: {$url} (found from run-time skipped links)", 3);
+            return false;
+        }
+        $this->skipped_links[$url] = true;
         if (strpos($url, wire('config')->urls->admin) === 0) {
             // admin URLs should always be skipped automatically
             $this->log("SKIPPED URL: {$url} (admin URL)", 3);
@@ -367,6 +407,8 @@ class LinkCrawler {
             $this->log("SKIPPED URL: {$url} (link points to current page)", 3);
             return false;
         }
+        // minimal sanitization for URLs
+        $url = str_replace("&amp;", "&", $url);
         if (in_array($url, array_keys($this->config->skipped_links))) {
             // compare URL to local skip list and continue if match is
             // found (but store a row to junction table nevertheless!)
@@ -399,6 +441,10 @@ class LinkCrawler {
             }
             return $this->isCheckableURL($this->config->http_host . ltrim($url, "/"), $page);
         }
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $this->log("SKIPPED URL: {$url} (URL didn't pass FILTER_VALIDATE_URL)", 3);
+            return false;
+        }
         if (in_array($url, array_keys($this->checked_links))) {
             // compare URL to list of links already checked, continue
             // (and store a row to junction table) if match is found
@@ -409,6 +455,7 @@ class LinkCrawler {
             $this->log("SKIPPED URL: {$url} (already checked)", 3);
             return false;
         }
+        unset($this->skipped_links[$url]);
         return $url;
     }
 
