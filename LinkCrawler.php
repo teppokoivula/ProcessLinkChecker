@@ -19,7 +19,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.0
+ * @version 0.3.1
  *
  */
 class LinkCrawler {
@@ -40,6 +40,7 @@ class LinkCrawler {
         'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
         'skip_link_regex' => null,
         'http_request_method' => 'get_headers',
+        'http_user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
     );
     
     /**
@@ -170,7 +171,7 @@ class LinkCrawler {
             'http' => array(
                 'follow_location' => 0,
                 'max_redirects' => 0,
-                'user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
+                'user_agent' => $this->config->http_user_agent,
             ),
         ));
         // prepare PDO statements for later use

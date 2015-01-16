@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.3.0',
+            'version' => '0.3.1',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -58,6 +58,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
             'skip_link_regex' => null,
             'http_request_method' => 'get_headers',
+            'http_user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
         );
     }
 
@@ -261,6 +262,15 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'get_headers' => 'get_headers()',
         ));
         $field->value = $data['http_request_method'];
+        $fieldset->add($field);
+
+        // link regex
+        $field = wire('modules')->get('InputfieldText');
+        $field->name = "http_user_agent";
+        $field->label = __("User agent");
+        $field->required = false;
+        $field->description = __("User-Agent header to send with HTTP requests. Some services may allow/deny access (or provide different content) based on this.");
+        $field->value = $data['http_user_agent'];
         $fieldset->add($field);
 
         // caching settings
