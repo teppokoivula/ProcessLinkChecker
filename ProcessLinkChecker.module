@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.3.4',
+            'version' => '0.3.5',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -49,7 +49,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         return array(
             'skipped_links' => array(),
             'cache_max_age' => '1 DAY',
-            'selector' => 'status!=trash, id!=2, has_parent!=2',
+            'selector' => 'status<8192, id!=2, has_parent!=2',
             'http_host' => null,
             'log_level' => 1,
             'log_on_screen' => false,

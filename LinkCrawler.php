@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.1
+ * @version 0.3.2
  *
  */
 class LinkCrawler {
@@ -30,7 +30,7 @@ class LinkCrawler {
     protected $default_config = array(
         'skipped_links' => array(),
         'cache_max_age' => '1 DAY',
-        'selector' => 'status!=trash, id!=2, has_parent!=2',
+        'selector' => 'status<8192, id!=2, has_parent!=2',
         'http_host' => null,
         'log_level' => 1,
         'log_on_screen' => false,
@@ -211,8 +211,10 @@ class LinkCrawler {
             }
         }
         $status_breakdown = array();
-        foreach ($this->stats['status'] as $status => $count) {
-            $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
+        if ($this->stats['links_checked']) {
+            foreach ($this->stats['status'] as $status => $count) {
+                $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
+            }
         }
         $time = wireRelativeTimeStr($this->stats['time_start']);
         $this->log(sprintf(
@@ -222,7 +224,7 @@ class LinkCrawler {
             $this->stats['links_checked'],
             $this->stats['links'],
             substr($time, 0, strpos($time, " ", strpos($time, " ")+1)),
-            implode(", ", $status_breakdown)
+            count($status_breakdown) ? implode(", ", $status_breakdown) : "unavailable (not enough data)"
         ));
     }
 
