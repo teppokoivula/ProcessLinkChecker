@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.3.1',
+            'version' => '0.3.2',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -188,7 +188,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         }
         $field->name = "selector";
         $field->label = __("Selector");
-        $field->value = $data['selector'];
+        $field->value = $data[$field->name];
         $field->description = __("Selector for finding pages to check for broken links.");
         $fields->add($field);
 
@@ -208,7 +208,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
                       . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
-        $field->value = $data['link_regex'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // skip link regex
@@ -219,7 +219,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->description = __("Used to identify links that should always be skipped.");
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
-        $field->value = $data['skip_link_regex'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // skipped links
@@ -227,7 +227,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "skipped_links";
         $field->label = __("Skipped links");
         $field->description = __("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
-        if ($data['skipped_links']) $field->value = implode("\n", $data['skipped_links']);
+        if ($data[$field->name]) $field->value = implode("\n", $data[$field->name]);
         $fieldset->add($field);
 
         // default http host
@@ -235,7 +235,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "http_host";
         $field->label = __("HTTP host for relative URLs");
         $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
-        $field->value = $data['http_host'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // conection settings
@@ -250,7 +250,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->label = __("Sleep between requests");
         $field->description = __("For how long should the crawler sleep between each request, in seconds?");
         $field->notes = __("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
-        $field->value = $data['sleep_between_requests'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // http request method
@@ -261,7 +261,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->addOptions(array(
             'get_headers' => 'get_headers()',
         ));
-        $field->value = $data['http_request_method'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // link regex
@@ -270,7 +270,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->label = __("User agent");
         $field->required = false;
         $field->description = __("User-Agent header to send with HTTP requests. Some services may allow/deny access (or provide different content) based on this.");
-        $field->value = $data['http_user_agent'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // caching settings
@@ -288,7 +288,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->addOption('1 WEEK', __("1 week"));
         $field->addOption('2 WEEK', __("2 weeks"));
         $field->addOption('1 MONTH', __("1 month"));
-        $field->value = $data['cache_max_age'];
+        $field->value = $data[$field->name];
         $fieldset->add($field);
 
         // clear cache now
@@ -308,7 +308,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->addOption('2', __("Crawled pages"));
         $field->addOption('3', __("Crawled pages and found URLs"));
         $field->addOption('4', __("Crawled pages, found URLs and recursively checked URLs"));
-        $field->value = $data['log_level'];
+        $field->value = $data[$field->name];
         $fields->add($field);
 
         return $fields;
