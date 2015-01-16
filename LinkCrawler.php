@@ -14,7 +14,6 @@
  * @todo consider storing link texts to pages table (SEO analysis etc.)
  * @todo consider adding (separate) domain-based throttling
  * @todo consider adding support for regexp skip links
- * @todo make user_agent configurable (options/string)
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
