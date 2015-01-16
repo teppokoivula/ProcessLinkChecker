@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.2
+ * @version 0.3.3
  *
  */
 class LinkCrawler {
@@ -48,7 +48,6 @@ class LinkCrawler {
      */
     protected $stats = array(
         'time_start' => null,
-        'time_end' => null,
         'pages' => 0,
         'pages_checked' => 0,
         'links' => 0,
