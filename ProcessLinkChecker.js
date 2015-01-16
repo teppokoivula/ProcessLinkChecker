@@ -71,7 +71,8 @@ $(function() {
                     });
                 } else {
                     $container.fadeOut('fast', function() {
-                        $container.show().appendTo($('table.links'));
+                        var table = $container.find('.status-4xx').length ? 'broken-links' : 'redirects';
+                        $container.show().appendTo($('table.' + table));
                         updateLinkTablePlaceholders();
                     });
                 }
