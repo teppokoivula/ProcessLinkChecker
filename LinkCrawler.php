@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.4
+ * @version 0.3.5
  *
  */
 class LinkCrawler {
@@ -124,7 +124,7 @@ class LinkCrawler {
         }
         $this->root = $root;
         // setup config object
-        $default_data = array_filter(ProcessLinkChecker::getDefaultData());
+        $default_data = ProcessLinkChecker::getDefaultData();
         $data = wire('modules')->getModuleConfigData('ProcessLinkChecker');
         $this->config = (object) array_merge($default_data, $data, $options);
         // link regex is required
