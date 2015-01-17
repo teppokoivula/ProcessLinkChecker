@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.3.5',
+            'version' => '0.3.6',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -245,7 +245,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $fields->add($fieldset);
 
         // sleep between requests
-        $field = wire('modules')->get('InputfieldInteger');
+        $field = wire('modules')->get('InputfieldFloat');
         $field->name = "sleep_between_requests";
         $field->label = __("Sleep between requests");
         $field->description = __("For how long should the crawler sleep between each request, in seconds?");

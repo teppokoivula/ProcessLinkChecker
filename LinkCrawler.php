@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.5
+ * @version 0.3.6
  *
  */
 class LinkCrawler {
@@ -147,6 +147,10 @@ class LinkCrawler {
         $links = $query->fetchAll(PDO::FETCH_COLUMN);
         if (count($links)) {
             $this->config->skipped_links = array_merge($this->config->skipped_links, array_fill_keys($links, null));
+        }
+        // support fractions of seconds in request throttling
+        if ($this->config->sleep_between_requests) {
+            $this->config->sleep_between_requests = round($this->config->sleep_between_requests*1000000);
         }
         // set default stream context options for get_headers()
         // @todo do we really want to implement custom code to follow redirects?
@@ -460,7 +464,7 @@ class LinkCrawler {
     protected function getHeaders($url) {
         // throttle requests to avoid unnecessary (local and external) load
         if (count($this->checked_links) && $this->config->sleep_between_requests) {
-            sleep($this->config->sleep_between_requests);
+            usleep($this->config->sleep_between_requests);
         }
         // fetch headers for an URL using PHP's native get_headers() method
         $headers = @get_headers($url, 1);
