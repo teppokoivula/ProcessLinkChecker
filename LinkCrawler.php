@@ -18,29 +18,10 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.3
+ * @version 0.3.4
  *
  */
 class LinkCrawler {
-    
-    /**
-     * Default values for config settings
-     * 
-     */
-    protected $default_config = array(
-        'skipped_links' => array(),
-        'cache_max_age' => '1 DAY',
-        'selector' => 'status<8192, id!=2, has_parent!=2',
-        'http_host' => null,
-        'log_level' => 1,
-        'log_on_screen' => false,
-        'max_recursion_depth' => 3,
-        'sleep_between_requests' => 1,
-        'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
-        'skip_link_regex' => null,
-        'http_request_method' => 'get_headers',
-        'http_user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
-    );
     
     /**
      * Basic run-time statistics
@@ -130,6 +111,9 @@ class LinkCrawler {
      * 
      * @param array $options for overwriting defaults and/or module settings
      * @param string $root ProcessWire root path
+     * @throws Exception if link_regex isn't set
+     * @throws Exception if link_regex is set but invalid
+     * @throws Exception if skip_link_regex is set but invalid
      */
     public function __construct($options = array(), $root = null) {
         // unless ProcessWire is already available, bootstrap from a pre-defined
@@ -139,14 +123,15 @@ class LinkCrawler {
             require rtrim($root, "/") . "/index.php";
         }
         $this->root = $root;
-        // setup config object (use values from local defaults, Process Link
-        // Checker defaults, Process Link Checker config and $options array)
+        // setup config object
         $default_data = array_filter(ProcessLinkChecker::getDefaultData());
         $data = wire('modules')->getModuleConfigData('ProcessLinkChecker');
-        $this->config = (object) array_merge($this->default_config, $default_data, $data, $options);
-        // link regex is required; use default value if null or empty
-        if (!$this->link_regex) $this->link_regex = $this->default_config['link_regex'];
-        // validate regex settings.. with more regex
+        $this->config = (object) array_merge($default_data, $data, $options);
+        // link regex is required
+        if (!$this->config->link_regex) {
+            throw new Exception("link_regex is required");
+        }
+        // validate regex settings with more regex
         $valid_regex = '/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/';
         if (!preg_match($valid_regex, $this->link_regex)) {
             throw new Exception("invalid link_regex");
@@ -235,6 +220,9 @@ class LinkCrawler {
      * 
      * @param Page $page
      * @return bool whether or not a Page was checked
+     * @throws Exception if render method is shell_exec but PHP binary isn't defined
+     * @throws Exception if render method is shell_exec but rener file isn't found
+     * @throws Exception if render method is unrecognized
      * @todo check if fatal errors could be logged and/or sent to admin with shell_exec method
      */
     protected function checkPage(Page $page) {
