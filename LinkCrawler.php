@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.6
+ * @version 0.3.7
  *
  */
 class LinkCrawler {
@@ -29,6 +29,7 @@ class LinkCrawler {
      */
     protected $stats = array(
         'time_start' => null,
+        'time_total' => 'less than a second',
         'pages' => 0,
         'pages_checked' => 0,
         'links' => 0,
@@ -204,14 +205,16 @@ class LinkCrawler {
                 $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
             }
         }
-        $time = wireRelativeTimeStr($this->stats['time_start']);
+        if ((int) ($time = wireRelativeTimeStr($this->stats['time_start']))) {
+            $this->stats['time_total'] = substr($time, 0, strpos($time, " ", strpos($time, " ")+1));
+        }
         $this->log(sprintf(
             "END: %d/%d Pages and %d/%d links checked in %s. Status breakdown: %s.",
             $this->stats['pages_checked'],
             $this->stats['pages'],
             $this->stats['links_checked'],
             $this->stats['links'],
-            substr($time, 0, strpos($time, " ", strpos($time, " ")+1)),
+            $this->stats['time_total'],
             count($status_breakdown) ? implode(", ", $status_breakdown) : "unavailable (not enough data)"
         ));
     }
