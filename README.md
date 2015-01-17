@@ -34,12 +34,11 @@ Note: at the moment all available options relate to the LinkCrawler class, but l
 
 LinkCrawler can read options from multiple sources:
 
-* LinkCrawler defaults
 * ProcessLinkChecker default settings
 * ProcessLinkChecker user-configured settings
 * Run-time settings (`$linkCrawler = new LinkCrawler(array('cache_max_age' => '1 SECOND'));`)
 
-Run-time settings override everything else, ProcessLinkChecker user-configured settings override ProcessLinkChecker default settings etc. This mechanism is intended to a) provide settings in all cases and b) allow you to run LinkCrawler with custom settings if/when needed.
+Run-time settings override everything else, ProcessLinkChecker user-configured settings override ProcessLinkChecker default settings, etc. This mechanism is intended to a) provide settings in all cases and b) allow you to run LinkCrawler with custom settings if/when needed.
 
 Possible settings for LinkCrawler (at the moment) are:
 
@@ -51,6 +50,10 @@ Possible settings for LinkCrawler (at the moment) are:
 * log_on_screen (mostly for command-line use; should log messages be displayed during crawl?)
 * max_recursion_depth (how deep should redirects be tracked, defaults to 1)
 * sleep_between_requests (the time to wait between each individual request, defaults to 1 second)
+* link_regex (regular expression used to identify checkable links from page content)
+* skip_link_regex (regular expression used to identify non-checkable/skipped links)
+* http_request_method (the method used to fetch page content via HTTP, defaults to get_headers())
+* http_user_agent (User-Agent string to send with HTTP requests)
 
 ## License
 
