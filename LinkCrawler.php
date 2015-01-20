@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.9
+ * @version 0.3.10
  *
  */
 class LinkCrawler {
@@ -318,7 +318,6 @@ class LinkCrawler {
     protected function checkURL($url, Page $page) {
         // make sure that URL is valid, not already checked etc.
         if (($final_url = $this->isCheckableURL($url, $page)) === false) return false;
-        $prefix = str_replace($url, "", $final_url);
         // new, checkable link found; grab status code, store link info
         // to database and cache link URL locally as a checked link
         $headers = $this->getHeaders($final_url);
@@ -352,7 +351,7 @@ class LinkCrawler {
         $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->execute();
         $this->checked_links[$final_url] = $links_id;
-        $this->log("CHECKED URL: " . ($final_url != $url ? str_replace($prefix, "[{$prefix}]", $final_url) : $url) . " ({$headers['status']})", 3);
+        $this->log("CHECKED URL: {$url}" . ($final_url != $url ? " [{$final_url}]" : "") . " ({$headers['status']})", 3);
         $this->log($log_queue, 4);
         return $headers['status'];
     }
