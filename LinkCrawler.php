@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.7
+ * @version 0.3.8
  *
  */
 class LinkCrawler {
@@ -405,6 +405,16 @@ class LinkCrawler {
         }
         // minimal sanitization for URLs
         $url = str_replace("&amp;", "&", $url);
+        // handling for hash/hashbang URLs
+        if (($hash_pos = strpos($url, "#")) !== false) {
+            $fragment = substr($url, $hash_pos);
+            $url = substr($url, 0, $hash_pos);
+            if ($fragment[0] == "!") {
+                // hashbang URL (https://developers.google.com/webmasters/ajax-crawling/docs/getting-started)
+                $escaped_fragment = "_escaped_fragment_=" . urlencode(substr($fragment, 1));
+                $url .= (strpos($url, "?") ? "&" : "?") . $escaped_fragment;
+            }
+        }
         if (in_array($url, array_keys($this->config->skipped_links))) {
             // compare URL to local skip list and continue if match is
             // found (but store a row to junction table nevertheless!)
