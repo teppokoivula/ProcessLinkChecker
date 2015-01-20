@@ -16,9 +16,9 @@
  * @todo consider adding support for regexp skip links
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
- * @copyright Copyright (c) 2014, Teppo Koivula
+ * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.8
+ * @version 0.3.9
  *
  */
 class LinkCrawler {
@@ -153,6 +153,9 @@ class LinkCrawler {
         if ($this->config->sleep_between_requests) {
             $this->config->sleep_between_requests = round($this->config->sleep_between_requests*1000000);
         }
+        if ($this->config->sleep_between_pages) {
+            $this->config->sleep_between_pages = round($this->config->sleep_between_pages*1000000);
+        }
         // set default stream context options for get_headers()
         // @todo do we really want to implement custom code to follow redirects?
         stream_context_set_default(array(
@@ -235,6 +238,10 @@ class LinkCrawler {
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
         if (!$this->isCheckablePage($page)) return false;
+        // throttle requests to avoid unnecessary (local and external) load
+        if ($this->stats['pages_checked'] && $this->config->sleep_between_pages) {
+            usleep($this->config->sleep_between_pages);
+        }
         // capture, iterate and check all links on page
         $data = "";
         switch ($this->render_method) {
