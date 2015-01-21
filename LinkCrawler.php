@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.10
+ * @version 0.3.11
  *
  */
 class LinkCrawler {
@@ -407,6 +407,12 @@ class LinkCrawler {
         if ($url == "." || $url == "./" || ($this->config->http_host && ($url == $this->config->http_host . $page->url))) {
             // skip links pointing to current page
             $this->log("SKIPPED URL: {$url} (link points to current page)", 3);
+            return false;
+        }
+        if (strpos($url, "data:") === 0 || strpos($url, "about:") === 0) {
+            // skip unsupported protocols
+            $protocol = substr($url, 0, strpos($url, ":"));
+            $this->log("SKIPPED URL: {$url} (unsupported protocol: $protocol)", 3);
             return false;
         }
         // minimal sanitization for URLs
