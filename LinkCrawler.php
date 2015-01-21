@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.3.11
+ * @version 0.4.0
  *
  */
 class LinkCrawler {
@@ -237,7 +237,7 @@ class LinkCrawler {
      */
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
-        if (!$this->isCheckablePage($page)) return false;
+        if ($this->isCheckablePage($page) == "") return false;
         // throttle requests to avoid unnecessary (local and external) load
         if ($this->stats['pages_checked'] && $this->config->sleep_between_pages) {
             usleep($this->config->sleep_between_pages);
@@ -317,7 +317,12 @@ class LinkCrawler {
      */
     protected function checkURL($url, Page $page) {
         // make sure that URL is valid, not already checked etc.
-        if (($final_url = $this->isCheckableURL($url, $page)) === false) return false;
+        $checkable = $this->isCheckableURL($url, $page);
+        if ($checkable == "") {
+            $this->log("SKIPPED URL: {$url} ({$checkable->message}", 3);
+            return false;
+        }
+        $final_url = $checkable->value;
         // new, checkable link found; grab status code, store link info
         // to database and cache link URL locally as a checked link
         $headers = $this->getHeaders($final_url);
@@ -363,18 +368,20 @@ class LinkCrawler {
      * addition of more complex rules for identifying checkable pages.
      * 
      * @param Page $page
-     * @return bool whether or not a Page can/should be checked
+     * @return CheckableValue
      */
     protected function isCheckablePage(Page $page) {
+        $return = new CheckableValue($page);
         if ($page->template == "admin") {
-            $this->log("NON-CHECKABLE Page: {$page->url} (template=admin)", 3);
-            return false;
+            $return->message = "NON-CHECKABLE Page: {$page->url} (template=admin)";
+            return $return;
         }
         if (!$page->viewable()) {
-            $this->log("NON-CHECKABLE Page: {$page->url} (not viewable)", 3);
-            return false;
+            $return->message = "NON-CHECKABLE Page: {$page->url} (not viewable)";
+            return $return;
         }
-        return true;
+        $return->status = true;
+        return $return;
     }
 
     /**
@@ -390,91 +397,94 @@ class LinkCrawler {
      *
      * @param string $url
      * @param Page $page
-     * @return bool|string false if URL can't be checked, otherwise URL itself
+     * @return CheckableValue
      */
     protected function isCheckableURL($url, $page) {
+        $return = new CheckableValue($url);
         if (isset($this->skipped_links[$url])) {
             // link has already been checked and found non-checkable
-            $this->log("SKIPPED URL: {$url} (found from run-time skipped links)", 3);
-            return false;
+            $return->message = "found from run-time skipped links";
+            return $return;
         }
         $this->skipped_links[$url] = true;
         if (strpos($url, wire('config')->urls->admin) === 0) {
             // admin URLs should always be skipped automatically
-            $this->log("SKIPPED URL: {$url} (admin URL)", 3);
-            return false;
+            $return->message = "admin URL";
+            return $return;
         }
         if ($url == "." || $url == "./" || ($this->config->http_host && ($url == $this->config->http_host . $page->url))) {
             // skip links pointing to current page
-            $this->log("SKIPPED URL: {$url} (link points to current page)", 3);
-            return false;
+            $return->message = "link points to current page";
+            return $return;
         }
         if (strpos($url, "data:") === 0 || strpos($url, "about:") === 0) {
             // skip unsupported protocols
             $protocol = substr($url, 0, strpos($url, ":"));
-            $this->log("SKIPPED URL: {$url} (unsupported protocol: $protocol)", 3);
-            return false;
+            $return->message = "unsupported protocol: $protocol";
+            return $return;
         }
         // minimal sanitization for URLs
-        $url = str_replace("&amp;", "&", $url);
+        $clean_url = str_replace("&amp;", "&", $url);
         // handling for hash/hashbang URLs
-        if (($hash_pos = strpos($url, "#")) !== false) {
-            $fragment = substr($url, $hash_pos);
-            $url = substr($url, 0, $hash_pos);
+        if (($hash_pos = strpos($clean_url, "#")) !== false) {
+            $fragment = substr($clean_url, $hash_pos);
+            $clean_url = substr($clean_url, 0, $hash_pos);
             if ($fragment[0] == "!") {
                 // hashbang URL (https://developers.google.com/webmasters/ajax-crawling/docs/getting-started)
                 $escaped_fragment = "_escaped_fragment_=" . urlencode(substr($fragment, 1));
-                $url .= (strpos($url, "?") ? "&" : "?") . $escaped_fragment;
+                $clean_url .= (strpos($clean_url, "?") ? "&" : "?") . $escaped_fragment;
             }
         }
-        if (in_array($url, array_keys($this->config->skipped_links))) {
+        if (in_array($clean_url, array_keys($this->config->skipped_links))) {
             // compare URL to local skip list and continue if match is
             // found (but store a row to junction table nevertheless!)
-            if (is_null($this->config->skipped_links[$url])) {
-                $this->stmt_select_id->bindValue(':url', $url, PDO::PARAM_STR);
+            if (is_null($this->config->skipped_links[$clean_url])) {
+                $this->stmt_select_id->bindValue(':url', $clean_url, PDO::PARAM_STR);
                 $this->stmt_select_id->execute();
                 $links_id = (int) $this->stmt_select_id->fetchColumn();
-                $this->config->skipped_links[$url] = $links_id ? $links_id : 0;
+                $this->config->skipped_links[$clean_url] = $links_id ? $links_id : 0;
             }
-            if ($this->config->skipped_links[$url]) {
-                $this->stmt_insert_links_pages->bindValue(':links_id', $this->config->skipped_links[$url], PDO::PARAM_INT);
+            if ($this->config->skipped_links[$clean_url]) {
+                $this->stmt_insert_links_pages->bindValue(':links_id', $this->config->skipped_links[$clean_url], PDO::PARAM_INT);
                 $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
                 $this->stmt_insert_links_pages->execute();
             }
-            $this->log("SKIPPED URL: {$url} (found from skipped links)", 3);
-            return false;
+            $return->message = "found from skipped links";
+            return $return;
         }
-        if ($this->skip_link_regex && preg_match($this->skip_link_regex, $url)) {
-            $this->log("SKIPPED URL: {$url} (matches skip link regex)", 3);
-            return false;
+        if ($this->skip_link_regex && preg_match($this->skip_link_regex, $clean_url)) {
+            $return->message = "matches skip link regex";
+            return $return;
         }
-        if (strpos($url, "//") === 0) {
+        if (strpos($clean_url, "//") === 0) {
             // protocol-relative URL; prepend with https: for get_headers()
-            $url = "https:" . $url;
-        } else if (!preg_match("/^http[s]?:\/\//i", $url)) {
+            $clean_url = "https:" . $clean_url;
+        } else if (!preg_match("/^http[s]?:\/\//i", $clean_url)) {
             // attempt to prefix relative URL with default HTTP host
             if (!$this->config->http_host) {
-                $this->log("SKIPPED URL: {$url} (local URL and no http_host specified)", 3);
-                return false;
+                $return->message = "local URL and no http_host specified";
+                return $return;
             }
-            return $this->isCheckableURL($this->config->http_host . ltrim($url, "/"), $page);
+            return $this->isCheckableURL($this->config->http_host . ltrim($clean_url, "/"), $page);
         }
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            $this->log("SKIPPED URL: {$url} (URL didn't pass FILTER_VALIDATE_URL)", 3);
-            return false;
+        if (!filter_var($clean_url, FILTER_VALIDATE_URL)) {
+            $return->message = "URL didn't pass FILTER_VALIDATE_URL";
+            return $return;
         }
-        if (in_array($url, array_keys($this->checked_links))) {
+        if (in_array($clean_url, array_keys($this->checked_links))) {
             // compare URL to list of links already checked, continue
             // (and store a row to junction table) if match is found
-            $this->stmt_insert_links_pages->bindValue(':links_id', $this->checked_links[$url], PDO::PARAM_INT);
+            $this->stmt_insert_links_pages->bindValue(':links_id', $this->checked_links[$clean_url], PDO::PARAM_INT);
             $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
             $this->stmt_insert_links_pages->execute();
             ++$this->stats['links_checked'];
-            $this->log("SKIPPED URL: {$url} (already checked)", 3);
-            return false;
+            $return->message = "already checked";
+            return $return;
         }
         unset($this->skipped_links[$url]);
-        return $url;
+        $return->value = $clean_url;
+        $return->status = true;
+        return $return;
     }
 
     /**
@@ -503,7 +513,9 @@ class LinkCrawler {
         // code part from status header and make sure that key 'location' exists
         $headers = array_change_key_case($headers);
         $headers['status'] = substr($headers[0], 9, 3);
-        if (!isset($headers['location'])) $headers['location'] = null;
+        if (!isset($headers['location'])) {
+            $headers['location'] = null;
+        }
         return $headers;
     }
 
@@ -548,4 +560,16 @@ class LinkCrawler {
         return false;
     }
 
+}
+
+class CheckableValue {
+    public $status = false;
+    public $message = "";
+    public $value = "";
+    public function __construct($value) {
+        $this->value = $value;
+    }
+    public function __toString() {
+        return $this->status ? (string) $this->value : "";
+    }
 }
