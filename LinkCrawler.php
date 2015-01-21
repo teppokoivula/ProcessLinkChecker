@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.3
+ * @version 0.4.4
  *
  */
 class LinkCrawler {
@@ -327,11 +327,13 @@ class LinkCrawler {
         // to database and cache link URL locally as a checked link
         $headers = $this->getHeaders($final_url);
         $log_queue = array();
+        $location = null;
         if (($headers['status'] == 301 || $headers['status'] == 302) && $headers['location'] && $this->config->max_recursion_depth) {
             // if a redirect (temporary or permanent) was identified, attempt to
             // find out current (real) location of target document recursively
             $rec_depth = 0;
             $rec_headers = $headers;
+            $location = $headers['location'];
             while ($rec_depth < $this->config->max_recursion_depth && $rec_headers['location']) {
                 ++$rec_depth;
                 $rec_url = $rec_headers['location'];
@@ -356,7 +358,7 @@ class LinkCrawler {
         $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->execute();
         $this->checked_links[$final_url] = $links_id;
-        $this->log("CHECKED URL: {$url}" . ($final_url != $url ? " [{$final_url}]" : "") . " ({$headers['status']})", 3);
+        $this->log("CHECKED URL: {$url}" . ($final_url != $url ? " [{$final_url}]" : "") . " ({$headers['status']}" . ($location ? " => {$location}" : "") . ")", 3);
         $this->log($log_queue, 4);
         return $headers['status'];
     }
