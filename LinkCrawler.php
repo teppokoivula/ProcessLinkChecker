@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.0
+ * @version 0.4.1
  *
  */
 class LinkCrawler {
@@ -515,6 +515,13 @@ class LinkCrawler {
         $headers['status'] = substr($headers[0], 9, 3);
         if (!isset($headers['location'])) {
             $headers['location'] = null;
+        } else if (!is_null($headers['location']) && !preg_match("/^http[s]?:\/\//i", $headers['location'])) {
+            // prefix relative location URLs with hostname
+            $parts = parse_url($url);
+            $prefix = (isset($parts['scheme']) ? $parts['scheme'] : "http") . "://";
+            if (isset($parts['host'])) $prefix .= $parts['host'];
+            else if (isset($parts['path'])) $prefix .= $parts['path']; // PHP < 5.4.7
+            $headers['location'] = $prefix . $headers['location'];
         }
         return $headers;
     }
