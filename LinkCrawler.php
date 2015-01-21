@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.2
+ * @version 0.4.3
  *
  */
 class LinkCrawler {
@@ -467,7 +467,9 @@ class LinkCrawler {
             }
             return $this->isCheckableURL($this->config->http_host . ltrim($clean_url, "/"), $page);
         }
-        if (!filter_var($clean_url, FILTER_VALIDATE_URL)) {
+        if (!filter_var(str_replace("-", "", $clean_url), FILTER_VALIDATE_URL)) {
+            // note: here we attempt to circumvent a PHP 5.3.2 bug affecting
+            // domains with dashes (https://bugs.php.net/bug.php?id=51192)
             $return->message = "URL didn't pass FILTER_VALIDATE_URL";
             return $return;
         }
