@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.3.8',
+            'version' => '0.4.0',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -52,6 +52,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'selector' => 'status<8192, id!=2, has_parent!=2',
             'http_host' => null,
             'log_level' => 1,
+            'log_rotate' => 0,
             'log_on_screen' => false,
             'max_recursion_depth' => 3,
             'sleep_between_requests' => 1,
@@ -310,18 +311,33 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
         $fieldset->add($field);
 
+        // logging settings
+        $fieldset = wire('modules')->get('InputfieldFieldset');
+        $fieldset->label = __("Logging");
+        $fieldset->icon = "file-text";
+        $fields->add($fieldset);
+
         // log level
         $field = wire('modules')->get('InputfieldSelect');
         $field->name = "log_level";
         $field->label = __("Log level");
         $field->description = __("Define how much gets logged by crawler.");
-        $field->addOption('0', __("Nothing (no logging)"));
-        $field->addOption('1', __("Start of each crawl"));
-        $field->addOption('2', __("Crawled pages"));
-        $field->addOption('3', __("Crawled pages and found URLs"));
-        $field->addOption('4', __("Crawled pages, found URLs and recursively checked URLs"));
+        $field->addOption('0', '0 ' . __("Nothing (no logging)"));
+        $field->addOption('1', '1 ' . __("Start of each crawl"));
+        $field->addOption('2', '2 ' . __("Crawled pages"));
+        $field->addOption('3', '3 ' . __("Crawled pages and found URLs"));
+        $field->addOption('4', '4 ' . __("Crawled pages, found URLs and recursively checked URLs"));
         $field->value = $data[$field->name];
-        $fields->add($field);
+        $fieldset->add($field);
+
+        // log rotation
+        $field = wire('modules')->get('InputfieldInteger');
+        $field->name = "log_rotate";
+        $field->label = __("Log rotate");
+        $field->value = $data[$field->name];
+        $field->description = __("Each log file contains details of one Link Crawler run. This setting defines how many log files for previous runs will be kept.");
+        $field->notes = __("By default only the latest log file will be kept; each run replaces the file with new one.");
+        $fieldset->add($field);
 
         return $fields;
 

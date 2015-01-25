@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.4
+ * @version 0.4.5
  *
  */
 class LinkCrawler {
@@ -182,7 +182,7 @@ class LinkCrawler {
         $this->stats['time_start'] = time();
         // prepare for logging
         if ($this->config->log_level) {
-            @unlink($this->log());
+            $this->logRotate();
             $this->log("START: {$this->config->selector}");
         }
         // cleanup any expired data
@@ -557,6 +557,36 @@ class LinkCrawler {
             }
         }
         return wire('log')->getFilename(strtolower(__CLASS__));
+    }
+
+    /**
+     * Rotate and/or remove old log files
+     *
+     */
+    protected function logRotate() {
+        $log_rotate = $this->config->log_rotate;
+        $log_file = $this->log();
+        if ($log_rotate) {
+            $i = $log_rotate;
+            while (file_exists($log_file . ".$i")) {
+                @unlink($log_file . ".$i");
+                ++$i;
+            }
+            for ($i = $log_rotate-1; $i > -1; --$i) {
+                $old_log_file = $log_file . ($i > 0 ? ".$i" : "");
+                $new_log_file = $log_file . "." . ($i+1);
+                if (file_exists($old_log_file)) {
+                    @rename($old_log_file, $new_log_file);
+                }
+            }
+        } else {
+            @unlink($log_file);
+            $i = 1;
+            while (file_exists($log_file . ".$i")) {
+                @unlink($log_file . ".$i");
+                ++$i;
+            }
+        }
     }
 
     /**
