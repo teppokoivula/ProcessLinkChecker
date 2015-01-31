@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.7
+ * @version 0.4.8
  *
  */
 class LinkCrawler {
@@ -465,7 +465,7 @@ class LinkCrawler {
             $return->message = "link points to current page";
             return $return;
         }
-        if (preg_match("/^((?!https?).*):/i", $url, $matches)) {
+        if (preg_match("/^((?!https?:).*):/i", $url, $matches)) {
             // skip unsupported schemes
             $return->message = "unsupported scheme: {$matches[1]}";
             return $return;
