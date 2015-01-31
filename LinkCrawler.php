@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.6
+ * @version 0.4.7
  *
  */
 class LinkCrawler {
@@ -465,10 +465,9 @@ class LinkCrawler {
             $return->message = "link points to current page";
             return $return;
         }
-        if (strpos($url, "data:") === 0 || strpos($url, "about:") === 0) {
-            // skip unsupported protocols
-            $protocol = substr($url, 0, strpos($url, ":"));
-            $return->message = "unsupported protocol: $protocol";
+        if (preg_match("/^((?!https?).*):/i", $url, $matches)) {
+            // skip unsupported schemes
+            $return->message = "unsupported scheme: {$matches[1]}";
             return $return;
         }
         // minimal sanitization for URLs
