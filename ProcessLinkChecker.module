@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.4.0',
+            'version' => '0.4.1',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -54,6 +54,8 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'log_level' => 1,
             'log_rotate' => 0,
             'log_on_screen' => false,
+            'batch_size' => 100,
+            'sleep_between_batches' => 0,
             'max_recursion_depth' => 3,
             'sleep_between_requests' => 1,
             'sleep_between_pages' => 0,
@@ -245,6 +247,26 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $fieldset->label = __("Connection");
         $fieldset->icon = "cloud";
         $fields->add($fieldset);
+
+        // batch size
+        $field = wire('modules')->get('InputfieldInteger');
+        $field->name = "batch_size";
+        $field->label = __("Batch size");
+        $field->columnWidth = 50;
+        $field->description = __("How many pages should be loaded into memory at simultaneously?");
+        $field->notes = __("Used to decrease memory usage during link crawling. Smaller batch size uses less memory but requires more database queries.");
+        $field->value = $data[$field->name];
+        $fieldset->add($field);
+
+        // sleep between batches
+        $field = wire('modules')->get('InputfieldFloat');
+        $field->name = "sleep_between_batches";
+        $field->label = __("Sleep between batches");
+        $field->columnWidth = 50;
+        $field->description = __("For how long should the crawler sleep between each batch of pages, in seconds?");
+        $field->notes = __("Used to decrease load both for local server (one making the requests) and the opposite end. Default value is one second.");
+        $field->value = $data[$field->name];
+        $fieldset->add($field);
 
         // sleep between requests
         $field = wire('modules')->get('InputfieldFloat');

@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.5
+ * @version 0.4.6
  *
  */
 class LinkCrawler {
@@ -193,13 +193,59 @@ class LinkCrawler {
             WHERE links.skip = 0 AND links.checked < DATE_SUB(NOW(), INTERVAL $interval) AND links_pages.links_id = links.id
         ");
         // find and check pages matching selector
-        $pages = wire('pages')->find($this->config->selector);
-        $this->stats['pages'] = $pages->count();
-        foreach ($pages as $page) {
-            $this->log("FOUND Page: {$page->url}", 2);
-            wire('pages')->uncacheAll();
-            if ($this->checkPage($page)) {
-                ++$this->stats['pages_checked'];
+        $start = 0;
+        $start_selector = null;
+        $selectors = new Selectors($this->config->selector);
+        $this->stats['pages'] = wire('pages')->count($selectors);
+        $limit = $this->stats['pages'];
+        foreach ($selectors as $selector) {
+            if ($selector->field == "limit") {
+                $limit = $selector->value;
+                $selectors->remove($selector);
+            } else if ($selector->field == "start") {
+                $start = $selector->value;
+                $selectors->remove($selector);
+            }
+        }
+        if ($start + $limit < $this->stats['pages']) $this->stats['pages'] = $start + $limit;
+        if ($limit > $this->stats['pages'] - $start) $limit = $this->stats['pages'] - $start;
+        $this->batch_size = $limit;
+        if ($this->config->batch_size && $this->config->batch_size < $this->batch_size) {
+            $this->batch_size = $this->config->batch_size;
+        }
+        $start_original = $start;
+        $limit_selector = new SelectorEqual('limit', $this->batch_size);
+        $selectors->add($limit_selector);
+        $batches = ceil($limit / $this->batch_size);
+        for ($batch = 0; $batch < $batches; ++$batch) {
+            // throttle requests to avoid unnecessary (local and external) load
+            if ($batch && $this->config->sleep_between_batches) {
+                usleep($this->config->sleep_between_batches);
+            }
+            if ($batch) $start += $this->batch_size;
+            if (($batch_pages = $start + $this->batch_size - $start_original) > $limit) {
+                $selectors->remove($limit_selector);
+                $limit_selector = new SelectorEqual('limit', $this->batch_size + ($limit - $batch_pages));
+                $selectors->add($limit_selector);
+            }
+            if ($start_selector) $selectors->remove($start_selector);
+            $start_selector = new SelectorEqual('start', $start);
+            $selectors->add($start_selector);
+            $this->log(sprintf(
+                "BATCH: %d/%d (pages %d-%d/%d)",
+                $batch+1,
+                $batches+1,
+                $start_selector->value,
+                $limit_selector->value,
+                $limit
+            ));
+            $pages = wire('pages')->find($selectors);
+            foreach ($pages as $page) {
+                $this->log("FOUND Page: {$page->url}", 2);
+                wire('pages')->uncacheAll();
+                if ($this->checkPage($page)) {
+                    ++$this->stats['pages_checked'];
+                }
             }
         }
         $status_breakdown = array();
@@ -319,7 +365,7 @@ class LinkCrawler {
         // make sure that URL is valid, not already checked etc.
         $checkable = $this->isCheckableURL($url, $page);
         if ($checkable == "") {
-            $this->log("SKIPPED URL: {$url} ({$checkable->message}", 3);
+            $this->log("SKIPPED URL: {$url} ({$checkable->message})", 3);
             return false;
         }
         $final_url = $checkable->value;
