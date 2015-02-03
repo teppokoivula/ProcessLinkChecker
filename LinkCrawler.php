@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.8
+ * @version 0.4.9
  *
  */
 class LinkCrawler {
@@ -448,6 +448,12 @@ class LinkCrawler {
      * @return CheckableValue
      */
     protected function isCheckableURL($url, $page) {
+        if (strpos($url, ".") === 0) {
+            // URL is relative to current page's path, expand before processing
+            // @todo consider adding an option for skipping over URLs like this
+            // @todo consider adding additional handling for "/./", "/../", etc.
+            $url = $page->url . $url;
+        }
         $return = new CheckableValue($url);
         if (isset($this->skipped_links[$url])) {
             // link has already been checked and found non-checkable
