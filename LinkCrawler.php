@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.9
+ * @version 0.4.10
  *
  */
 class LinkCrawler {
@@ -235,8 +235,8 @@ class LinkCrawler {
                 "BATCH: %d/%d (pages %d-%d/%d)",
                 $batch+1,
                 $batches+1,
-                $start_selector->value,
-                $limit_selector->value,
+                $start_selector->value + 1,
+                $start_selector->value + $limit_selector->value,
                 $limit
             ));
             $pages = wire('pages')->find($selectors);
