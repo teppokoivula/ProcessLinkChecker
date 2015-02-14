@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.5.1
+ * @version 0.5.2
  *
  */
 class LinkCrawler {
@@ -34,6 +34,7 @@ class LinkCrawler {
         'pages_checked' => 0,
         'links' => 0,
         'links_checked' => 0,
+        'unique_links' => 0,
         'status' => array(),
     );
 
@@ -165,7 +166,7 @@ class LinkCrawler {
         $this->stmt_select_id = wire('database')->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE url = :url LIMIT 1");
         $this->stmt_insert_links = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS . " (url, status, location) VALUES (:url, :status, :location) ON DUPLICATE KEY UPDATE url = VALUES(url), status = VALUES(status), location = VALUES(location), checked = NOW()");
         $this->stmt_insert_links_pages = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS_PAGES . " (links_id, pages_id) VALUES (:links_id, :pages_id) ON DUPLICATE KEY UPDATE links_id = VALUES(links_id), pages_id = VALUES(pages_id)");
-        $this->stmt_insert_history = wire('database')->prepare("INSERT INTO " . self::TABLE_HISTORY . " (time_start, pages, pages_checked, links, links_checked, status) VALUES (:time_start, :pages, :pages_checked, :links, :links_checked, :status)");
+        $this->stmt_insert_history = wire('database')->prepare("INSERT INTO " . self::TABLE_HISTORY . " (time_start, pages, pages_checked, links, links_checked, unique_links, status) VALUES (:time_start, :pages, :pages_checked, :links, :links_checked, :unique_links, :status)");
     }
 
     /**
@@ -268,6 +269,7 @@ class LinkCrawler {
         $this->stmt_insert_history->bindValue(':pages_checked', $this->stats['pages_checked'], PDO::PARAM_INT);
         $this->stmt_insert_history->bindValue(':links', $this->stats['links'], PDO::PARAM_INT);
         $this->stmt_insert_history->bindValue(':links_checked', $this->stats['links_checked'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':unique_links', $this->stats['unique_links'], PDO::PARAM_INT);
         $this->stmt_insert_history->bindValue(':status', json_encode($this->stats['status']), PDO::PARAM_STR);
         $this->stmt_insert_history->execute();
     }
@@ -366,6 +368,7 @@ class LinkCrawler {
     protected function checkURL($url, Page $page) {
         // make sure that URL is valid, not already checked etc.
         $checkable = $this->isCheckableURL($url, $page);
+        if ($checkable->unique) ++$this->stats['unique_links'];
         if ($checkable == "") {
             $this->log("SKIPPED URL: {$url} ({$checkable->message})", 3);
             return false;
@@ -461,6 +464,7 @@ class LinkCrawler {
         if (isset($this->skipped_links[$url])) {
             // link has already been checked and found non-checkable
             $return->message = "found from run-time skipped links";
+            $return->unique = false;
             return $return;
         }
         $this->skipped_links[$url] = true;
@@ -537,6 +541,7 @@ class LinkCrawler {
             $this->stmt_insert_links_pages->execute();
             ++$this->stats['links_checked'];
             $return->message = "already checked";
+            $return->unique = false;
             return $return;
         }
         unset($this->skipped_links[$url]);
@@ -665,7 +670,7 @@ class LinkCrawler {
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.5.0
+ * @version 0.6.0
  */
 class CheckableValue {
     
@@ -686,6 +691,12 @@ class CheckableValue {
      *
      */
     public $message = "";
+
+    /**
+     * Uniqueness of the value ("is this value being checked for the first time?")
+     *
+     */
+    public $unique = true;
 
     /**
      * Constructor method

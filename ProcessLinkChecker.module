@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.5.4',
+            'version' => '0.5.5',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -756,6 +756,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'pages_checked INT UNSIGNED NOT NULL',
             'links INT UNSIGNED NOT NULL',
             'links_checked INT UNSIGNED NOT NULL',
+            'unique_links INT UNSIGNED NOT NULL',
             'status VARCHAR(255) NOT NULL',
             'PRIMARY KEY (time_end)',
         ));
@@ -813,27 +814,27 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $widget->columnWidth = 50;
         $json = array(array(), array(), array(), array());
         $query = $this->database->query("
-            SELECT *
+            SELECT time_end, pages, pages_checked, unique_links, links_checked
             FROM " . self::TABLE_HISTORY . "
             ORDER BY time_end
         ");
         $rows = $query->fetchAll(PDO::FETCH_ASSOC);
         $row = array(
-            'links' => 0, 
-            'links_checked' => 0, 
-            'pages' => 0, 
+            'pages' => 0,
             'pages_checked' => 0,
+            'unique_links' => 0,
+            'links_checked' => 0,
         );
         foreach ($rows as $row) {
-            $json[2][] = array($row['time_end'], (int) $row['links']);
-            $json[3][] = array($row['time_end'], (int) $row['links_checked']);
             $json[0][] = array($row['time_end'], (int) $row['pages']);
             $json[1][] = array($row['time_end'], (int) $row['pages_checked']);
+            $json[2][] = array($row['time_end'], (int) $row['unique_links']);
+            $json[3][] = array($row['time_end'], (int) $row['links_checked']);
         }
         $json = count($rows) ? json_encode($json) : "";
         $widget->value = "<div id='overview'>"
                        . "<div class='help'>" . __("This graph displays the amount of links and pages of the site. Some uncheckable links and pages are to be expected, but if that number gets too big, it might be a sign of an issue.") . "</div>"
-                       . "<div class='item total-links'><strong>{$row['links']}</strong> <small>total links</small></div>"
+                       . "<div class='item unique-links'><strong>{$row['unique_links']}</strong> <small>unique links</small></div>"
                        . "<div class='item checked-links'><strong>{$row['links_checked']}</strong> <small>checked links</small></div>"
                        . "<div class='item checked-pages'><strong>{$row['pages_checked']}</strong> <small>checked pages</small></div>"
                        . "<div class='item total-pages'><strong>{$row['pages']}</strong> <small>total pages</small></div>"
