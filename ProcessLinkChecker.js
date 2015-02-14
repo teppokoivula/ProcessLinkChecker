@@ -112,7 +112,7 @@ $(function() {
                 rendererOptions: {
                     showDataLabels: true,
                     sliceMargin: 2,
-                    shadow: false,
+                    shadow: false
                 },
                 seriesColors: [
                     '#DDDDDD',
@@ -152,6 +152,9 @@ $(function() {
                     tickOptions: {
                         formatString: '%#d.%#m.%Y'
                     }
+                },
+                yaxis: {
+                    min: 0
                 }
             },
             highlighter: {
