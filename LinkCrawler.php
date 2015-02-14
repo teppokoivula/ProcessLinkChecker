@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.5.0
+ * @version 0.5.1
  *
  */
 class LinkCrawler {
@@ -397,6 +397,7 @@ class LinkCrawler {
                 $log_queue[] = "RECURSIVE CHECK: {$rec_url} ({$rec_headers['status']} => {$rec_headers['location']})";
             }
         }
+        if ($headers['status'] == "") $headers['status'] = null;
         $this->stmt_insert_links->bindValue(':url', $url, PDO::PARAM_STR);
         $this->stmt_insert_links->bindValue(':status', $headers['status'], PDO::PARAM_STR);
         $this->stmt_insert_links->bindValue(':location', $headers['location'], PDO::PARAM_STR);
