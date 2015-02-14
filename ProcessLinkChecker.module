@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.5.3',
+            'version' => '0.5.4',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -482,12 +482,12 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . $this->_("Remove this link from list") . "'></i></a>";
         $page_limit = 3;
 
-        // fetch links from database
+        // fetch links from database (skip working links and temporary redirects)
         $query = $this->database->query("
             SELECT links.*, GROUP_CONCAT(DISTINCT links_pages.pages_id SEPARATOR '|') as page_ids 
             FROM " . self::TABLE_LINKS . " links 
             LEFT JOIN " . self::TABLE_LINKS_PAGES . " links_pages ON links_pages.links_id = links.id 
-            WHERE links.status IS NULL OR links.status >= 300
+            WHERE links.status IS NULL OR (links.status >= 300 AND links.status NOT IN (302,304,307))
             GROUP BY links.id
             ORDER BY links.url
         ");
