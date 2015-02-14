@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.4.10
+ * @version 0.5.0
  *
  */
 class LinkCrawler {
@@ -34,13 +34,7 @@ class LinkCrawler {
         'pages_checked' => 0,
         'links' => 0,
         'links_checked' => 0,
-        'status' => array(
-            '1xx' => 0,
-            '2xx' => 0,
-            '3xx' => 0,
-            '4xx' => 0,
-            '5xx' => 0,
-        ),
+        'status' => array(),
     );
 
     /**
@@ -95,6 +89,7 @@ class LinkCrawler {
     protected $stmt_select_id = null;
     protected $stmt_insert_links = null;
     protected $stmt_insert_links_pages = null;
+    protected $stmt_insert_history = null;
 
     /**
      * Constants containing names of used database tables
@@ -102,6 +97,7 @@ class LinkCrawler {
      */
     const TABLE_LINKS = 'link_checker_links';
     const TABLE_LINKS_PAGES = 'link_checker_links_pages';
+    const TABLE_HISTORY = 'link_checker_history';
     
     /**
      * Fetch config settings from ProcessWire module and bootstrap ProcessWire
@@ -169,6 +165,7 @@ class LinkCrawler {
         $this->stmt_select_id = wire('database')->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE url = :url LIMIT 1");
         $this->stmt_insert_links = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS . " (url, status, location) VALUES (:url, :status, :location) ON DUPLICATE KEY UPDATE url = VALUES(url), status = VALUES(status), location = VALUES(location), checked = NOW()");
         $this->stmt_insert_links_pages = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS_PAGES . " (links_id, pages_id) VALUES (:links_id, :pages_id) ON DUPLICATE KEY UPDATE links_id = VALUES(links_id), pages_id = VALUES(pages_id)");
+        $this->stmt_insert_history = wire('database')->prepare("INSERT INTO " . self::TABLE_HISTORY . " (time_start, pages, pages_checked, links, links_checked, status) VALUES (:time_start, :pages, :pages_checked, :links, :links_checked, :status)");
     }
 
     /**
@@ -266,6 +263,13 @@ class LinkCrawler {
             $this->stats['time_total'],
             count($status_breakdown) ? implode(", ", $status_breakdown) : "unavailable (not enough data)"
         ));
+        $this->stmt_insert_history->bindValue(':time_start', $this->stats['time_start'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':pages', $this->stats['pages'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':pages_checked', $this->stats['pages_checked'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':links', $this->stats['links'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':links_checked', $this->stats['links_checked'], PDO::PARAM_INT);
+        $this->stmt_insert_history->bindValue(':status', json_encode($this->stats['status']), PDO::PARAM_STR);
+        $this->stmt_insert_history->execute();
     }
 
     /**
@@ -340,12 +344,10 @@ class LinkCrawler {
                     ++$this->stats['links'];
                     if (($status = $this->checkURL($url, $page)) !== false) {
                         ++$this->stats['links_checked'];
-                        switch (substr($status, 0, 1)) {
-                            case 1: ++$this->stats['status']['1xx']; break;
-                            case 2: ++$this->stats['status']['2xx']; break;
-                            case 3: ++$this->stats['status']['3xx']; break;
-                            case 4: ++$this->stats['status']['4xx']; break;
-                            case 5: ++$this->stats['status']['5xx']; break;
+                        if (isset($this->stats['status'][$status])) {
+                            $this->stats['status'][$status] += 1;
+                        } else {
+                            $this->stats['status'][$status] = 1;
                         }
                     }
                 }

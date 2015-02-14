@@ -113,3 +113,170 @@ button[name=check-now] {
     margin-top: 2em;
     border: 1px solid #eee;
 }
+
+#link-checker-dashboard .InputfieldMarkup {
+    float: left;
+    clear: none;
+}
+
+#link-checker-dashboard .InputfieldMarkup:nth-child(even) {
+    float: right;
+}
+
+.help {
+    border: 1px solid #BEBBA7;
+    border-radius: 3px;
+    background: #FFF9E1;
+    position: relative;
+    height: 25px;
+    width: 0;
+    cursor: pointer;
+    overflow: hidden;
+    padding: 1em 0 0 3em;
+}
+
+.help:hover {
+    opacity: 0.8;
+}
+
+.help.open,
+.help.open:hover {
+    opacity: 1;
+    width: auto;
+    height: auto;
+    padding: 1em 1em 1em 3em;
+}
+
+.help:before {
+    font-family: FontAwesome;
+    position: absolute;
+    font-size: 1.4em;
+    content: '\f059';
+    color: #555;
+    left: 11px;
+    top: 10px;
+}
+
+.data td,
+.data th {
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+}
+
+.data th {
+    width: 60px;
+    background: #eee;
+}
+
+.data td:nth-child(2) {
+    border: 1px solid #d0d0d0;
+    background: #f9f9f9;
+}
+
+.data tr:first-of-type th:nth-child(2) {
+    border: 1px solid #d2d2d2;
+    background: #e5e5e5;
+}
+
+.data th i {
+    cursor: help;
+}
+
+.plot {
+    clear: left;
+}
+
+.data,
+.plot {
+    width: 100%;
+    float: left;
+    margin-top: 1em;
+}
+
+#status-breakdown .data,
+#status-breakdown .plot {
+    width: 50%;
+    clear: none;
+}
+
+.item {
+    float: left;
+    color: #fff;
+    width: 22.5%;
+    background: #fff;
+    border-radius: 3px;
+    margin: 1em 3.33% 0 0;
+    box-sizing: border-box;
+    text-transform: uppercase;
+    padding: 1.5em 1.25em 1em 1.25em;
+}
+
+.item:nth-child(4) {
+    float: right;
+    margin-right: 0;
+}
+
+.item.total-links {
+    background: #81BF40;
+}
+
+.item.checked-links {
+    background: #73A158;
+}
+
+.item.total-pages {
+    background: #2FB2EC;
+}
+
+.item.checked-pages {
+    background: #309BCA;
+}
+
+.item strong {
+    color: #fff;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.25);
+    font-weight: bold;
+    font-size: 2em;
+    display: block;
+}
+
+.item small {
+    opacity: 0.8;
+}
+
+#status-breakdown .data tr td:first-of-type {
+    cursor: help;
+}
+
+#status-breakdown .data tr td span {
+    display: inline-block;
+    border-radius: 2px;
+    position: relative;
+    margin: 0 0.25em -3px 0;
+    height: 1.25em;
+    width: 1.25em;
+}
+
+#status-breakdown .data tr.cnone td span {
+    background: #DDDDDD;
+}
+
+#status-breakdown .data tr.c1xx td span {
+    background: #D2E4EA;
+}
+
+#status-breakdown .data tr.c2xx td span {
+    background: #81bf40;
+}
+
+#status-breakdown .data tr.c3xx td span {
+    background: #FFA500;
+}
+
+#status-breakdown .data tr.c4xx td span {
+    background: #FF0000;
+}
+
+#status-breakdown .data tr.c5xx td span {
+    background: #C20202;
+}

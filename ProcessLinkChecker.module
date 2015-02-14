@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.4.1',
+            'version' => '0.5.0',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -72,6 +72,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      */
     const TABLE_LINKS = 'link_checker_links';
     const TABLE_LINKS_PAGES = 'link_checker_links_pages';
+    const TABLE_HISTORY = 'link_checker_history';
 
     /**
      * Name of admin page created and used by this module
@@ -406,11 +407,21 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     public function execute() {
 
         // load scripts and styles
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.donutRenderer.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.highlighter.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.cursor.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.dateAxisRenderer.min.js");
         $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".js");
+        $this->config->styles->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.css");
         $this->config->styles->append($this->config->urls->{$this->className()} . $this->className() . ".css");
 
         // fieldset (tabs)
         $this->modules->get('JqueryWireTabs');
+        $tab_dashboard = $this->buildDashboard();
+        $tab_dashboard->attr('id', 'link-checker-dashboard');
+        $tab_dashboard->attr('title', $this->_("Dashboard"));
+        $tab_dashboard->label = "&nbsp;";
         $tab_links = new InputfieldMarkup();
         $tab_links->attr('id', 'link-checker-broken-links');
         $tab_links->attr('title', $this->_("Broken Links"));
@@ -427,6 +438,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $tab_skipped_links->description = $this->_("Not a single link has been marked as skipped so far!");
         $tab_skipped_links->label = "&nbsp;";
         $tabs = new InputfieldWrapper();
+        $tabs->add($tab_dashboard);
         $tabs->add($tab_links);
         $tabs->add($tab_redirects);
         $tabs->add($tab_skipped_links);
@@ -735,6 +747,18 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'pages_id INT UNSIGNED NOT NULL',
             'PRIMARY KEY (links_id, pages_id)',
         ));
+        
+        // table containing history data
+        $this->createTable(self::TABLE_HISTORY, array(
+            'time_start TIMESTAMP DEFAULT "0000-00-00 00:00:00"',
+            'time_end TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            'pages INT UNSIGNED NOT NULL',
+            'pages_checked INT UNSIGNED NOT NULL',
+            'links INT UNSIGNED NOT NULL',
+            'links_checked INT UNSIGNED NOT NULL',
+            'status VARCHAR(255) NOT NULL',
+            'PRIMARY KEY (time_end)',
+        ));
 
         // create a page for this module
         $page = new Page();
@@ -771,6 +795,101 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             $this->message("Deleted Page: {$page->path}"); 
         }
 
+    }
+    
+    /**
+     * Build dashboard widgets
+     * 
+     * @return InputfieldFieldset
+     * @todo domains, keywords, ...
+     */
+    protected function buildDashboard() {
+
+        $fieldset = new InputfieldFieldset();
+
+        // overview
+        $fieldset->add($widget = new InputfieldMarkup);
+        $widget->label = $this->_("Overview");
+        $widget->columnWidth = 50;
+        $json = array(array(), array(), array(), array());
+        $query = $this->database->query("
+            SELECT *
+            FROM " . self::TABLE_HISTORY . "
+            ORDER BY time_end
+        ");
+        $rows = $query->fetchAll(PDO::FETCH_ASSOC);
+        $row = array(
+            'links' => 0, 
+            'links_checked' => 0, 
+            'pages' => 0, 
+            'pages_checked' => 0,
+        );
+        foreach ($rows as $row) {
+            $json[2][] = array($row['time_end'], (int) $row['links']);
+            $json[3][] = array($row['time_end'], (int) $row['links_checked']);
+            $json[0][] = array($row['time_end'], (int) $row['pages']);
+            $json[1][] = array($row['time_end'], (int) $row['pages_checked']);
+        }
+        $json = count($rows) ? json_encode($json) : "";
+        $widget->value = "<div id='overview'>"
+                       . "<div class='help'>" . __("This graph displays the amount of links and pages of the site. Some uncheckable links and pages are to be expected, but if that number gets too big, it might be a sign of an issue.") . "</div>"
+                       . "<div class='item total-links'><strong>{$row['links']}</strong> <small>total links</small></div>"
+                       . "<div class='item checked-links'><strong>{$row['links_checked']}</strong> <small>checked links</small></div>"
+                       . "<div class='item checked-pages'><strong>{$row['pages_checked']}</strong> <small>checked pages</small></div>"
+                       . "<div class='item total-pages'><strong>{$row['pages']}</strong> <small>total pages</small></div>"
+                       . "<div class='plot' id='overview-plot' data-json='{$json}'></div>"
+                       . "</div>";
+        
+        // status breakdown
+        $fieldset->add($widget = new InputfieldMarkup);
+        $widget->label = $this->_("Status breakdown");
+        $widget->columnWidth = 50;
+        $status_info = "<i class='fa fa-question-circle' title='" . $this->_("none: unable to read link target, 2xx: OK, 3xx: redirect, 4xx: target not found, 5xx: target has an error") . "'></i>";
+        $markup_rows = "<tr>"
+                     . "<th>" . $this->_("Status") . " {$status_info}</th>"
+                     . "<th>" . $this->_("Count") . "</th>"
+                     . "<th>" . $this->_("Percentage") . "</th>"
+                     . "</tr>";
+        $json = array(
+            'none' => array($this->_("none"), 0),
+            '1xx' => array('1xx', 0),
+            '2xx' => array('2xx', 0),
+            '3xx' => array('3xx', 0),
+            '4xx' => array('4xx', 0),
+            '5xx' => array('5xx', 0),
+        );
+        $query = $this->database->query("
+            SELECT status, count(*) AS count
+            FROM " . self::TABLE_LINKS . "
+            GROUP BY status
+            ORDER BY status
+        ");
+        $total = 0;
+        $rows = $query->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) $total += $row['count'];
+        foreach ($rows as $row) {
+            $key = $row['status'][0] . "xx";
+            if (is_null($row['status'])) {
+                $row['status'] = $this->_("none");
+                $key = "none";
+            }
+            $json[$key][1] += $row['count'];
+            $percentage = $row['count'] && $total ? round(($row['count']/$total)*100, 2) : 0;
+            $markup_rows .= "<tr class='c{$key}'>"
+                          . "<td" . ((int) $row['status'] ? " title='{$this->status_codes[$row['status']]}'" : '') . "><span></span> {$row['status']}</td>"
+                          . "<td>{$row['count']}</td>"
+                          . "<td>{$percentage}%</td>"
+                          . "</tr>";
+        }
+        $json = count($rows) ? json_encode(array(array_values($json))) : "";
+        $widget->value = "<div id='status-breakdown'>"
+                       . "<div class='help'>" . __("This graph outlines the health of the links on the site. While broken links and server errors are what you should be most worried about, redirects can cause additional delay for users, and can also imply that a piece of content is about to go away.") . "</div>"
+                       . "<table class='data'>{$markup_rows}</table>"
+                       . "<div class='plot' id='status-breakdown-plot' data-json='{$json}'></div>"
+                       . "</div>";
+
+        return $fieldset;
+        
     }
     
     /**
