@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.5.0',
+            'version' => '0.5.1',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -868,10 +868,11 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $rows = $query->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $row) $total += $row['count'];
         foreach ($rows as $row) {
-            $key = $row['status'][0] . "xx";
             if (is_null($row['status'])) {
                 $row['status'] = $this->_("none");
                 $key = "none";
+            } else {
+                $key = $row['status'][0] . "xx";
             }
             $json[$key][1] += $row['count'];
             $percentage = $row['count'] && $total ? round(($row['count']/$total)*100, 2) : 0;
