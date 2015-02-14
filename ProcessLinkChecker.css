@@ -53,7 +53,8 @@
 }
 
 .status-none {
-    background: red;
+    color: #333;
+    background: #DDDDDD;
 }
 
 .status-5xx {
