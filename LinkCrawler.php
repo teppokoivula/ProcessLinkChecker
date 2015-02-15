@@ -18,7 +18,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.5.2
+ * @version 0.5.3
  *
  */
 class LinkCrawler {
@@ -539,7 +539,6 @@ class LinkCrawler {
             $this->stmt_insert_links_pages->bindValue(':links_id', $this->checked_links[$clean_url], PDO::PARAM_INT);
             $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
             $this->stmt_insert_links_pages->execute();
-            ++$this->stats['links_checked'];
             $return->message = "already checked";
             $return->unique = false;
             return $return;
