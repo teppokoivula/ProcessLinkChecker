@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => 'Link Checker',
             'summary' => 'Automated Link Checking',
             'author' => 'Teppo Koivula',
-            'version' => '0.5.5',
+            'version' => '0.6.0',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -60,7 +60,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'sleep_between_requests' => 1,
             'sleep_between_pages' => 0,
             'link_regex' => '/(?:href|src)=([\\\'"])([^#].*?)\g{-2}/i',
-            'skip_link_regex' => null,
+            'skipped_links_regex' => null,
             'http_request_method' => 'get_headers',
             'http_user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
         );
@@ -208,21 +208,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "link_regex";
         $field->label = __("Link regex");
         $field->required = true;
-        $field->columnWidth = 50;
         $field->description = __("Used to identify checkable links from page content.");
         $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.")
                       . sprintf(" " . __("Default: %s."), $defaults['link_regex']);
-        $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
-        $field->value = $data[$field->name];
-        $fieldset->add($field);
-
-        // skip link regex
-        $field = wire('modules')->get('InputfieldText');
-        $field->name = "skip_link_regex";
-        $field->label = __("Skip link regex");
-        $field->columnWidth = 50;
-        $field->description = __("Used to identify links that should always be skipped.");
-        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
         $field->pattern = '(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$';
         $field->value = $data[$field->name];
         $fieldset->add($field);
@@ -232,6 +220,16 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "skipped_links";
         $field->label = __("Skipped links");
         $field->description = __("Links that should be skipped, one per line. Links pointing to admin area will always be skipped.");
+        if ($data[$field->name]) $field->value = implode("\n", $data[$field->name]);
+        $fieldset->add($field);
+
+        // skipped links regex
+        $field = wire('modules')->get('InputfieldTextarea');
+        $field->name = "skipped_links_regex";
+        $field->label = __("Skipped links regex");
+        $field->description = __("Regex patterns identifying skipped links, one per line. Additionally all malformed links and links pointing to admin area will be skipped.");
+        $field->notes = __("Use [PCRE](http://www.php.net/manual/en/pcre.pattern.php) syntax including delimiters and modifiers.");
+        $field->pattern = '^(?:([^\w\s\\\]|_).*\1(?:[imsxADSUXJu]*)(?:\r\n|\n|\r|$))+$';
         if ($data[$field->name]) $field->value = implode("\n", $data[$field->name]);
         $fieldset->add($field);
 
@@ -378,8 +376,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     /**
      * Sanitize config data upon save
      * 
-     * Convert URLs separated by newlines to array and remove duplicate or empty
-     * values (skipped_links) + make sure that http_host ends with single slash.
+     * Convert URLs separated by newlines to arrays, remove duplicate or empty
+     * values (skipped_links and skipped_links_regex), and make sure that the
+     * http_host ends with a single slash.
      *
      * @param HookEvent $event
      */
@@ -392,6 +391,14 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
                     return trim($item);
                 },
                 preg_split("/\r\n|\n|\r/", $arguments[1]['skipped_links'])
+            )));
+        }
+        if ($arguments[1]['skipped_links_regex']) {
+            $arguments[1]['skipped_links_regex'] = array_unique(array_filter(array_map(
+                function($item) {
+                    return trim($item);
+                },
+                preg_split("/\r\n|\n|\r/", $arguments[1]['skipped_links_regex'])
             )));
         }
         if ($arguments[1]['http_host']) {
@@ -511,7 +518,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
                 }
                 $total = $pages->getTotal();
                 if ($total > $page_limit) {
-                    $pages_str .= html_entity_decode(sprintf($this->_("<br /><small>(+ %d more)</small>"), $total-$page_limit));
+                    $pages_str .= "<br /><small>(" . sprintf($this->_("+ %d more"), $total-$page_limit) . ")</small>";
                 }
             }
             

@@ -13,12 +13,11 @@
  * 
  * @todo consider storing link texts to pages table (SEO analysis etc.)
  * @todo consider adding (separate) domain-based throttling
- * @todo consider adding support for regexp skip links
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2015, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.5.3
+ * @version 0.6.0
  *
  */
 class LinkCrawler {
@@ -111,7 +110,7 @@ class LinkCrawler {
      * @param string $root ProcessWire root path
      * @throws Exception if link_regex isn't set
      * @throws Exception if link_regex is set but invalid
-     * @throws Exception if skip_link_regex is set but invalid
+     * @throws Exception if skipped_links_regex is set but invalid
      */
     public function __construct($options = array(), $root = null) {
         // unless ProcessWire is already available, bootstrap from a pre-defined
@@ -130,12 +129,11 @@ class LinkCrawler {
             throw new Exception("link_regex is required");
         }
         // validate regex settings with more regex
-        $valid_regex = '/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/';
-        if (!preg_match($valid_regex, $this->link_regex)) {
+        if (!preg_match('/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/', $this->link_regex)) {
             throw new Exception("invalid link_regex");
         }
-        if ($this->skip_link_regex && !preg_match($valid_regex, $this->skip_link_regex)) {
-            throw new Exception("invalid skip_link_regex");
+        if ($this->skipped_links_regex && !preg_match('/^(?:([^\w\s\\\]|_).*\1(?:[imsxADSUXJu]*)(?:\r\n|\n|\r|$))+$/', implode("\n", $this->skipped_links_regex))) {
+            throw new Exception("invalid skipped_links_regex");
         }
         // merge skipped and cached links from database with defaults
         if (!$this->config->skipped_links) $this->config->skipped_links = array();
@@ -512,9 +510,13 @@ class LinkCrawler {
             $return->message = "found from skipped links";
             return $return;
         }
-        if ($this->skip_link_regex && preg_match($this->skip_link_regex, $clean_url)) {
-            $return->message = "matches skip link regex";
-            return $return;
+        if ($this->skipped_links_regex) {
+            foreach ($this->skipped_links_regex as $skipped_links_regex) {
+                if (preg_match($skipped_links_regex, $clean_url)) {
+                    $return->message = "matches skipped links regex";
+                    return $return;
+                }
+            }
         }
         if (strpos($clean_url, "//") === 0) {
             // protocol-relative URL; prepend with https: for get_headers()
