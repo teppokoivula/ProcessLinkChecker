@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.6.1',
+            'version' => '0.6.2',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
@@ -561,7 +561,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $processPage = $this->pages->get("process=$process");
         $this->config->js($this->className(), array(
             'i18n' => array(
-                'commentPrompt' => $this->_("Type in comment text for this revision (max 255 characters)"),
+                'commentPrompt' => $this->_("Type in comment text for this link (max 255 characters)"),
             ),
             'processPage' => $processPage->url(),
         ));
