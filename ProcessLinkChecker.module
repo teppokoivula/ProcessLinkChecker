@@ -23,10 +23,10 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      */
     public static function getModuleInfo() {
         return array(
-            'title' => 'Link Checker',
-            'summary' => 'Automated Link Checking',
+            'title' => __('Link Checker'),
+            'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.6.0',
+            'version' => '0.6.1',
             'singular' => true,
             'autoload' => 'template=admin',
             'permissions' => array(
