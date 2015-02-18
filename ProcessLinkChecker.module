@@ -26,9 +26,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.6.2',
+            'version' => '0.6.3',
             'singular' => true,
-            'autoload' => 'template=admin',
+            'autoload' => 'template=admin, name=module',
             'permissions' => array(
                 'link-checker' => 'Link Checker (access)',
                 'link-checker-run' => 'Link Checker (run)',
