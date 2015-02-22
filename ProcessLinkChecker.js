@@ -33,8 +33,8 @@ $(function() {
         });
     });
 
-    $('.AdminDataTable')
-        .on('click', '.edit-comment', function() {
+    $('body')
+        .on('click', '.AdminDataTable .edit-comment', function() {
             // edit comment
             var $container = $(this).parent('td').prev('td');
             var link = $(this).data('link');
@@ -46,7 +46,7 @@ $(function() {
             }
             return false;
         })
-        .on('click', '.remove-link', function() {
+        .on('click', '.AdminDataTable .remove-link', function() {
             // remove link
             var $container = $(this).parents('tr:first');
             var link = $(this).data('link');
@@ -58,24 +58,17 @@ $(function() {
             });
             return false;
         })
-        .on('change', 'input[name=skip]', function() {
+        .on('change', '.AdminDataTable input[name=skip]', function() {
             // mark link skipped
             var $container = $(this).parents('tr:first');
             var link = $(this).val();
             var skip = $(this).is(':checked') ? 1 : 0;
             $.post(moduleConfig.processPage+'skip', { links_id: link, skip: skip }, function() {
-                if (skip) {
-                    $container.fadeOut('fast', function() {
-                        $container.show().appendTo($('table.skipped-links')); 
-                        updateLinkTablePlaceholders();
-                    });
-                } else {
-                    $container.fadeOut('fast', function() {
-                        var table = $container.find('.status-4xx').length ? 'broken-links' : 'redirects';
-                        $container.show().appendTo($('table.' + table));
-                        updateLinkTablePlaceholders();
-                    });
-                }
+                var $table = $('table.' + (skip ? 'skipped-links' : ($container.find('.status-4xx').length ? 'broken-links' : 'redirects')));
+                $container.fadeOut('fast', function() {
+                    if ($table.length) $container.show().appendTo($table);
+                    updateLinkTablePlaceholders();
+                });
             });
         });
     
@@ -92,97 +85,7 @@ $(function() {
             }
         });
     }
-
-    updateLinkTablePlaceholders();
     
-    // draw dashboard diagrams
-    var plotName1 = 'status-breakdown-plot';
-    var plotData1 = $('#' + plotName1).data('json');
-    if (plotData1) {
-        var plot1 = $.jqplot(plotName1, plotData1, {
-            grid: {
-                drawBorder: false,
-                drawGridlines: false,
-                background: 'transparent',
-                shadow: false
-            },
-            shadow: false,
-            seriesDefaults: {
-                renderer: $.jqplot.DonutRenderer,
-                rendererOptions: {
-                    showDataLabels: true,
-                    sliceMargin: 2,
-                    shadow: false
-                },
-                seriesColors: [
-                    '#DDDDDD',
-                    '#D2E4EA',
-                    '#81bf40',
-                    '#FFA500',
-                    '#FF0000',
-                    '#C20202'
-                ]
-            },
-            legend: {
-                show: false
-            }  
-        });
-    }
-    var plotName2 = 'overview-plot';
-    var plotData2 = $('#' + plotName2).data('json');
-    if (plotData2) {
-        var plot2 = $.jqplot(plotName2, plotData2, {
-            grid: {
-                drawBorder: false,
-                drawGridlines: true,
-                background: 'transparent',
-                shadow: false
-            },
-            shadow: false,
-            seriesColors: [
-                '#2FB2EC',
-                '#309BCA',
-                '#81BF40',
-                '#73A158'
-            ],
-            axes: {
-                xaxis: {
-                    renderer: $.jqplot.DateAxisRenderer,
-                    // tickInterval: '1 day',
-                    tickOptions: {
-                        formatString: '%#d.%#m.%Y'
-                    }
-                },
-                yaxis: {
-                    min: 0
-                }
-            },
-            highlighter: {
-                show: true,
-                sizeAdjust: 15
-            },
-            legend: {
-                show: false
-            }
-        });
-    }
-    
-    if (plotData1 || plotData2) {
-        var plotTimeout;
-        $(window).on('resize', function() {
-            window.clearTimeout(plotTimeout);
-            plotTimeout = window.setTimeout(function() {
-                if (plotData1) plot1.replot();
-                if (plotData2) plot2.replot();
-            }, 250);
-        });
-    }
-
-    // help
-    $('.help').on('click', function() {
-        $(this).toggleClass('open');
-    });
-
     // instantiate WireTabs
     if ($('ul.Inputfields:not(ul.Inputfields ul.Inputfields)').length) {
         $('ul.Inputfields:not(ul.Inputfields ul.Inputfields)').WireTabs({
@@ -190,5 +93,26 @@ $(function() {
             id: 'ProcessLinkCheckerTabs',
         });
     }
+
+    // asynchronous tab content
+    var tables = [];
+    var $loader = $('<i class="fa fa-spin fa-refresh"></i>');
+    $('a[href^=#link-checker]:not(:first):not(a[href^=#link-checker-check-now])').on('click', function() {
+        var table = $(this).attr('href').substr(14);
+        if (!tables[table]) {
+            var $description = $('#link-checker-' + table).find('.description:first');
+            $description.hide().before($loader);
+            $.get(location.pathname + 'table', { id: table }, function(data) {
+                tables[table] = 1;
+                $loader.remove();
+                if (data) {
+                    $description.after(data).hide();
+                    $('table.' + table).tablesorter();
+                } else {
+                    $description.show();
+                }
+            });
+        }
+    });
     
 });

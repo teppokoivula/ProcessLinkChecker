@@ -26,9 +26,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.6.3',
+            'version' => '0.7.0',
             'singular' => true,
-            'autoload' => 'template=admin, name=module',
+            'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permissions' => array(
                 'link-checker' => 'Link Checker (access)',
                 'link-checker-run' => 'Link Checker (run)',
@@ -144,6 +144,22 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         507 => 'Insufficient Storage',
         509 => 'Bandwidth Limit Exceeded',
         510 => 'Not Extended',
+    );
+    
+    /**
+     * Placeholder for page object
+     *
+     */
+    protected $process_page;
+    
+    /**
+     * Known tables and related WHERE clauses
+     * 
+     */
+    protected $tables = array(
+        'broken-links' => 'links.skip = 0 AND (links.status IS NULL OR links.status >= 400)',
+        'redirects' => 'links.skip = 0 AND links.status BETWEEN 300 AND 399',
+        'skipped-links' => 'links.skip = 1',
     );
     
     /**
@@ -369,6 +385,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      *
      */
     public function init() {
+        // fetch page object related to current process
+        $process = $this->modules->getModuleID($this->className());
+        $this->process_page = $this->pages->get("process=$process");
         // custom handling (sanitizing) for skipped links in module config
         $this->addHookBefore('Modules::saveModuleConfigData', $this, 'sanitizeConfig');
     }
@@ -409,175 +428,45 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
 
     /**
      * Executed when page with this process assigned is accessed
-     *
+     * 
      */
     public function execute() {
 
         // load scripts and styles
-        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.js");
-        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.donutRenderer.min.js");
-        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.highlighter.min.js");
-        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.cursor.min.js");
-        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.dateAxisRenderer.min.js");
         $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".js");
-        $this->config->styles->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.css");
         $this->config->styles->append($this->config->urls->{$this->className()} . $this->className() . ".css");
 
-        // fieldset (tabs)
-        $this->modules->get('JqueryWireTabs');
-        $tab_dashboard = $this->buildDashboard();
-        $tab_dashboard->attr('id', 'link-checker-dashboard');
-        $tab_dashboard->attr('title', $this->_("Dashboard"));
-        $tab_dashboard->label = "&nbsp;";
-        $tab_links = new InputfieldMarkup();
-        $tab_links->attr('id', 'link-checker-broken-links');
-        $tab_links->attr('title', $this->_("Broken Links"));
-        $tab_links->description = $this->_("Congratulations, no broken links found!");
-        $tab_links->label = "&nbsp;";
-        $tab_redirects = new InputfieldMarkup();
-        $tab_redirects->attr('id', 'link-checker-redirects');
-        $tab_redirects->attr('title', $this->_("Redirects"));
-        $tab_redirects->description = $this->_("No redirects have been identified yet.");
-        $tab_redirects->label = "&nbsp;";
-        $tab_skipped_links = new InputfieldMarkup();
-        $tab_skipped_links->attr('id', 'link-checker-skipped-links');
-        $tab_skipped_links->attr('title', $this->_("Skipped Links"));
-        $tab_skipped_links->description = $this->_("Not a single link has been marked as skipped so far!");
-        $tab_skipped_links->label = "&nbsp;";
-        $tabs = new InputfieldWrapper();
-        $tabs->add($tab_dashboard);
-        $tabs->add($tab_links);
-        $tabs->add($tab_redirects);
-        $tabs->add($tab_skipped_links);
-        if ($this->user->hasPermission('link-checker-run')) {
-            $tab_check = new InputfieldMarkup();
-            $tab_check->attr('title', $this->_("Check now"));
-            $tab_check->attr('id', 'link-checker-check-now');
-            $tab_check->description = $this->_("Run Link Crawler right now? Note: this may take a long time.");
-            $tab_check->label = "&nbsp;";
-            $tabs->add($tab_check);
-        }
-
-        // table header row
-        $header_row = array(
-            $this->_("URL"),
-            $this->_("Pages"),
-            $this->_("Status"),
-            $this->_("Last checked"),
-            $this->_("Skip"),
-            $this->_("Comment"),
-            '', // placeholder
-        );
-
-        // table for broken links
-        $table = $this->modules->get('MarkupAdminDataTable');
-        $table->setEncodeEntities(false);
-        $table->setClass('broken-links');
-        $table->headerRow($header_row);
-        $table->row(array());
-
-        // table for redirects
-        $table_redirects = clone $table;
-        $table_redirects->setClass('redirects');
-
-        // table for skipped links
-        $table_skipped = clone $table;
-        $table_skipped->setClass('skipped-links');
-
-        // prepare settings and markup templates
-        $comment = "<a class='action edit-comment' data-link='%d' href='#'><i class='fa fa-edit' title='" . $this->_("Edit comment for this link") . "'></i></a>";
-        $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . $this->_("Remove this link from list") . "'></i></a>";
-        $page_limit = 3;
-
-        // fetch links from database (skip working links and temporary redirects)
-        $query = $this->database->query("
-            SELECT links.*, GROUP_CONCAT(DISTINCT links_pages.pages_id SEPARATOR '|') as page_ids 
-            FROM " . self::TABLE_LINKS . " links 
-            LEFT JOIN " . self::TABLE_LINKS_PAGES . " links_pages ON links_pages.links_id = links.id 
-            WHERE links.status IS NULL OR (links.status >= 300 AND links.status NOT IN (302,304,307))
-            GROUP BY links.id
-            ORDER BY links.url
-        ");
-
-        while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
-
-            // string representation of this link itself
-            $url_str = $row['url'];
-            if ($row['location']) {
-                $url_str .= "<br /><small>" . $this->sanitizer->entities($row['location']) . "</small>";
-            }
-
-            // string representation of pages this link is found from
-            $pages_str = "";
-            if ($row['page_ids']) {
-                $page_ids = $this->sanitizer->text($row['page_ids']);
-                $pages = $this->pages->find("id={$page_ids}, limit={$page_limit}, include=all");
-                foreach ($pages as $page) {
-                    if ($pages_str) $pages_str .= "<br />";
-                    $pages_str .= "<a href='{$page->url}' target='_blank'>{$page->url}</a>";
-                }
-                $total = $pages->getTotal();
-                if ($total > $page_limit) {
-                    $pages_str .= "<br /><small>(" . sprintf($this->_("+ %d more"), $total-$page_limit) . ")</small>";
-                }
-            }
-            
-            // string representation of the status of this link
-            $status_error = $this->_("Error checking this link");
-            $status_code = "<span title='{$status_error}'>" . $this->_("none") . "</span>";
-            $status_str = "<div class='status status-none'>{$status_code}</div>";
-            if ($row['status']) {
-                $status_code = "<span title='" . $this->status_codes[$row['status']] . "'>{$row['status']}</span>";
-                $status_str = "<div class='status status-" . substr($row['status'], 0, 1) . "xx status-{$row['status']}'>{$status_code}</div>";
-            }
-
-            // construct table row
-            $table_row = array(
-                $url_str,
-                $pages_str,
-                $status_str,
-                $row['checked'],
-                "<input type='checkbox' name='skip' value='{$row['id']}'" . ($row['skip'] ? " checked='checked'" : "") . " />",
-                $row['comment'],
-                sprintf($comment, $row['id']) . sprintf($remove, $row['id']) 
-            );
-
-            // add table row to appropriate table
-            if ($row['skip']) {
-                $table_skipped->has_rows = true;
-                $table_skipped->row($table_row);
-            } else if ($row['status'] >= 300 && $row['status'] < 400) {
-                $table_redirects->has_rows = true;
-                $table_redirects->row($table_row);
-            } else {
-                $table->has_rows = true;
-                $table->row($table_row);
-            }
-                
-        }
-
         // inject settings, translations etc.
-        $process = $this->modules->getModuleID($this->className());
-        $processPage = $this->pages->get("process=$process");
         $this->config->js($this->className(), array(
             'i18n' => array(
                 'commentPrompt' => $this->_("Type in comment text for this link (max 255 characters)"),
             ),
-            'processPage' => $processPage->url(),
+            'processPage' => $this->process_page->url(),
         ));
         
-        // render tables and insert into previously created tabs
-        $tab_links->markupText = $table->render();
-        $tab_redirects->markupText = $table_redirects->render();
-        $tab_skipped_links->markupText = $table_skipped->render();
-
-        // add content to check now tab
-        $src = $processPage->url() . "check?modal=1";
-        $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";
-        $button = wire('modules')->get('InputfieldButton');
-        $button->name = "check-now";
-        $button->value = $this->_("Check now");
-        $tab_check->markupText = $button->render() . $iframe;
+        // fieldset (tabs)
+        $this->modules->get('MarkupAdminDataTable');
+        $this->modules->get('JqueryWireTabs');
+        $tabs = new InputfieldWrapper();
+        $tabs->add($this->buildDashboard());
+        $tabs->add($this->buildLinksTab(
+            'broken-links', 
+            $this->_("Broken Links"), 
+            $this->_("Congratulations, no broken links found!")
+        ));
+        $tabs->add($this->buildLinksTab(
+            'redirects', 
+            $this->_("Redirects"),
+            $this->_("No redirects have been identified yet.")
+        ));
+        $tabs->add($this->buildLinksTab(
+            'skipped-links',
+            $this->_("Skipped Links"),
+            $this->_("Not a single link has been marked as skipped so far!")
+        ));
+        if ($this->user->hasPermission('link-checker-run')) {
+            $tabs->add($this->buildCheckNow());
+        }
 
         return $tabs->render();
         
@@ -806,14 +695,133 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     }
     
     /**
+     * Return markup for table holding link data
+     * 
+     * @param string $class class name for table
+     * @return string HTML markup for the table, or empty string if no rows found
+     * @throws WireException if table isn't known
+     */
+    public function executeTable() {
+        
+        // this view is for AJAX only
+        if (!$this->config->ajax) {
+            throw new Wire404Exception();
+        }
+        
+        // check if a known table
+        $table_id = $this->input->get->id;
+        if (!isset($this->tables[$table_id])) {
+            throw new WireException("Unrecognized table: $table");
+        }
+        
+        // setup new Admin Data Table
+        $table = $this->modules->get('MarkupAdminDataTable');
+        $table->setEncodeEntities(false);
+        $table->setClass($table_id);
+        $table->headerRow(array(
+            $this->_("URL"),
+            $this->_("Pages"),
+            $this->_("Status"),
+            $this->_("Last checked"),
+            $this->_("Skip"),
+            $this->_("Comment"),
+            '', // placeholder
+        ));
+
+        // prepare settings and markup templates
+        $comment = "<a class='action edit-comment' data-link='%d' href='#'><i class='fa fa-edit' title='" . $this->_("Edit comment for this link") . "'></i></a>";
+        $remove = "<a class='action remove-link' data-link='%d' href='#'><i class='fa fa-trash-o' title='" . $this->_("Remove this link from list") . "'></i></a>";
+        $page_limit = 3;
+        
+        // fetch links from database
+        $query = $this->database->query("
+            SELECT links.*, GROUP_CONCAT(DISTINCT links_pages.pages_id SEPARATOR '|') as page_ids 
+            FROM " . self::TABLE_LINKS . " links 
+            LEFT JOIN " . self::TABLE_LINKS_PAGES . " links_pages ON links_pages.links_id = links.id 
+            WHERE " . $this->tables[$table_id] . "
+            GROUP BY links.id
+            ORDER BY links.url
+        ");
+
+        $row_count = 0;
+        while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
+
+            // increment row count
+            ++$row_count;
+            
+            // string representation of this link itself
+            $url_str = $row['url'];
+            if ($row['location']) {
+                $url_str .= "<br /><small>" . $this->sanitizer->entities($row['location']) . "</small>";
+            }
+            
+            // string representation of pages this link is found from
+            $pages_str = "";
+            if ($row['page_ids']) {
+                $page_ids = $this->sanitizer->text($row['page_ids']);
+                $pages = $this->pages->find("id={$page_ids}, limit={$page_limit}, include=all");
+                foreach ($pages as $page) {
+                    if ($pages_str) $pages_str .= "<br />";
+                    $pages_str .= "<a href='{$page->url}' target='_blank'>{$page->url}</a>";
+                }
+                $total = $pages->getTotal();
+                if ($total > $page_limit) {
+                    $pages_str .= "<br /><small>(" . sprintf($this->_("+ %d more"), $total-$page_limit) . ")</small>";
+                }
+            }
+            
+            // string representation of the status of this link
+            $status_error = $this->_("Error checking this link");
+            $status_code = "<span title='{$status_error}'>" . $this->_("none") . "</span>";
+            $status_str = "<div class='status status-none'>{$status_code}</div>";
+            if ($row['status']) {
+                $status_code = "<span title='" . $this->status_codes[$row['status']] . "'>{$row['status']}</span>";
+                $status_str = "<div class='status status-" . substr($row['status'], 0, 1) . "xx status-{$row['status']}'>{$status_code}</div>";
+            }
+            
+            // construct table row
+            $table_row = array(
+                $url_str,
+                $pages_str,
+                $status_str,
+                $row['checked'],
+                "<input type='checkbox' name='skip' value='{$row['id']}'" . ($row['skip'] ? " checked='checked'" : "") . " />",
+                $row['comment'],
+                sprintf($comment, $row['id']) . sprintf($remove, $row['id']) 
+            );
+            
+            // add row to table
+            $table->has_rows = true;
+            $table->row($table_row);
+            
+        }
+        
+        return $row_count ? $table->render() : '';
+        
+    }
+
+    /**
      * Build dashboard widgets
      * 
      * @return InputfieldFieldset
-     * @todo domains, keywords, ...
+     * @todo more widgets (domains, keywords, ...)
      */
     protected function buildDashboard() {
 
+        // load scripts and styles
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.donutRenderer.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.highlighter.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.cursor.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . "jqplot/plugins/jqplot.dateAxisRenderer.min.js");
+        $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".dashboard.js");
+        $this->config->styles->append($this->config->urls->{$this->className()} . "jqplot/jquery.jqplot.min.css");
+
+        // setup fieldset
         $fieldset = new InputfieldFieldset();
+        $fieldset->attr('id', 'link-checker-dashboard');
+        $fieldset->attr('title', $this->_("Dashboard"));
+        $fieldset->label = "&nbsp;";
 
         // overview
         $fieldset->add($widget = new InputfieldMarkup);
@@ -899,6 +907,47 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
 
         return $fieldset;
         
+    }
+    
+    /**
+     * Build links tab
+     * 
+     * @param string $id
+     * @param string $title
+     * @param string $description
+     * @return InputfieldMarkup
+     */
+    protected function buildLinksTab($id, $title, $description) {
+        $inputfield = new InputfieldMarkup();
+        $inputfield->attr('id', 'link-checker-' . $id);
+        $inputfield->attr('title', $title);
+        $inputfield->description = $description;
+        $inputfield->label = "&nbsp;";
+        return $inputfield;
+    }
+
+    /**
+     * Build "check now" tab
+     * 
+     * @return InputfieldMarkup
+     */
+    protected function buildCheckNow() {
+
+        $inputfield = new InputfieldMarkup();
+        $inputfield->attr('title', $this->_("Check now"));
+        $inputfield->attr('id', 'link-checker-check-now');
+        $inputfield->description = $this->_("Run Link Crawler right now? Note: this may take a long time.");
+        $inputfield->label = "&nbsp;";
+
+        $src = $this->process_page->url() . "check?modal=1";
+        $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";
+        $button = $this->modules->get('InputfieldButton');
+        $button->name = "check-now";
+        $button->value = $this->_("Check now");
+        $inputfield->value = $button->render() . $iframe;
+
+        return $inputfield;
+
     }
     
     /**
