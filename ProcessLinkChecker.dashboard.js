@@ -89,6 +89,10 @@ $(function() {
     });
 
     // data tables
-    $('table.data').tablesorter();
-
+    $('table.data').each(function() {
+        if ($(this).find('tr').length > 1) {
+            $(this).tablesorter();
+        }
+    });
+    
 });

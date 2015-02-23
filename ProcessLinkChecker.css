@@ -125,15 +125,17 @@ button[name=check-now] {
 }
 
 .help {
+    box-sizing: border-box;
     border: 1px solid #BEBBA7;
     border-radius: 3px;
     background: #FFF9E1;
     position: relative;
-    height: 25px;
-    width: 0;
+    font-size: 12px;
+    width: 38px;
+    height: 40px;
     cursor: pointer;
     overflow: hidden;
-    padding: 1em 0 0 3em;
+    padding: 0 0 0 38px;
 }
 
 .help:hover {
@@ -151,11 +153,12 @@ button[name=check-now] {
 .help:before {
     font-family: FontAwesome;
     position: absolute;
-    font-size: 1.4em;
+    line-height: 18px;
+    font-size: 18px;
     content: '\f059';
     color: #555;
     left: 11px;
-    top: 10px;
+    top: 11px;
 }
 
 #link-checker-dashboard .data td,
