@@ -33,12 +33,6 @@
     width: 4em;
 }
 
-.content .InputfieldHeader {
-    margin: 0;
-    padding: 0;
-    cursor: default;
-}
-
 .content p.description {
     margin: 1em 0 0.5em 0;
 }
