@@ -25,7 +25,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.7.2',
+            'version' => '0.7.3',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permissions' => array(
@@ -157,7 +157,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      */
     protected $tables = array(
         'broken-links' => 'links.skip = 0 AND (links.status IS NULL OR links.status >= 400)',
-        'redirects' => 'links.skip = 0 AND links.status BETWEEN 300 AND 399',
+        'redirects' => 'links.skip = 0 AND links.status BETWEEN 300 AND 399 AND links.status NOT IN (302,304,307)',
         'skipped-links' => 'links.skip = 1',
     );
     
