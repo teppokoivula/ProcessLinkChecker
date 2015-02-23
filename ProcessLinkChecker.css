@@ -158,28 +158,51 @@ button[name=check-now] {
     top: 10px;
 }
 
-.data td,
-.data th {
+#link-checker-dashboard .data td,
+#link-checker-dashboard .data th {
     padding: 5px 8px;
     border: 1px solid #ddd;
 }
 
-.data th {
+#link-checker-dashboard .data th.header {
     width: 60px;
+    color: #333;
+    cursor: pointer;
     background: #eee;
 }
 
-.data td:nth-child(2) {
+#link-checker-dashboard .data th.header:before,
+#link-checker-dashboard .data th.header:before {
+    transition: width 0.2s;
+    font-family: FontAwesome;
+    display: inline-block;
+    overflow: hidden;
+    content: '\f077';
+    float: left;
+    color: #888;
+    width: 0;
+}
+
+#link-checker-dashboard .data th.header.headerSortUp:before,
+#link-checker-dashboard .data th.header.headerSortDown:before {
+    width: 1.25em;
+}
+
+#link-checker-dashboard .data th.header.headerSortDown:before {
+    content: '\f078';
+}
+
+#link-checker-dashboard .data td:nth-child(2) {
     border: 1px solid #d0d0d0;
     background: #f9f9f9;
 }
 
-.data tr:first-of-type th:nth-child(2) {
+#link-checker-dashboard .data tr:first-of-type th:nth-child(2) {
     border: 1px solid #d2d2d2;
     background: #e5e5e5;
 }
 
-.data th i {
+#link-checker-dashboard .data th i {
     cursor: help;
 }
 
@@ -194,10 +217,12 @@ button[name=check-now] {
     margin-top: 1em;
 }
 
-#status-breakdown .data,
-#status-breakdown .plot {
-    width: 50%;
-    clear: none;
+@media screen and (min-width: 960px) {
+    #status-breakdown .data,
+    #status-breakdown .plot {
+        width: 50%;
+        clear: none;
+    }
 }
 
 .item {
@@ -215,6 +240,23 @@ button[name=check-now] {
 .item:nth-child(4) {
     float: right;
     margin-right: 0;
+}
+
+@media screen and (max-width: 1060px) {
+    .item {
+        width: 47.5%;
+    }
+    .item:nth-child(3) {
+        float: right;
+        margin-right: 0;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    .item {
+        width: 100%;
+        float: none !important;
+    }
 }
 
 .item.unique-links {

@@ -26,7 +26,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.7.0',
+            'version' => '0.7.1',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permissions' => array(
@@ -820,6 +820,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // setup fieldset
         $fieldset = new InputfieldFieldset();
         $fieldset->attr('id', 'link-checker-dashboard');
+        $fieldset->attr('class', 'link-checker-tab');
         $fieldset->attr('title', $this->_("Dashboard"));
         $fieldset->label = "&nbsp;";
 
@@ -861,11 +862,11 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $widget->label = $this->_("Status breakdown");
         $widget->columnWidth = 50;
         $status_info = "<i class='fa fa-question-circle' title='" . $this->_("none: unable to read link target, 2xx: OK, 3xx: redirect, 4xx: target not found, 5xx: target has an error") . "'></i>";
-        $markup_rows = "<tr>"
-                     . "<th>" . $this->_("Status") . " {$status_info}</th>"
-                     . "<th>" . $this->_("Count") . "</th>"
-                     . "<th>" . $this->_("Percentage") . "</th>"
-                     . "</tr>";
+        $markup_rows = "<thead><tr>"
+                     . "<th class='header'>" . $this->_("Status") . " {$status_info}</th>"
+                     . "<th class='header'>" . $this->_("Count") . "</th>"
+                     . "<th class='header'>" . $this->_("Percentage") . "</th>"
+                     . "</tr></thead>";
         $json = array(
             'none' => array($this->_("none"), 0),
             '1xx' => array('1xx', 0),
@@ -920,6 +921,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     protected function buildLinksTab($id, $title, $description) {
         $inputfield = new InputfieldMarkup();
         $inputfield->attr('id', 'link-checker-' . $id);
+        $inputfield->attr('class', 'link-checker-tab');
         $inputfield->attr('title', $title);
         $inputfield->description = $description;
         $inputfield->label = "&nbsp;";

@@ -88,4 +88,7 @@ $(function() {
         $(this).toggleClass('open');
     });
 
+    // data tables
+    $('table.data').tablesorter();
+
 });
