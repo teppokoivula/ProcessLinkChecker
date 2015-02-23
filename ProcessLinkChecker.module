@@ -12,7 +12,6 @@
  * 
  * http://processwire.com
  * 
- * @todo consider adding bulk actions 
  */
 class ProcessLinkChecker extends Process implements ConfigurableModule {
 
