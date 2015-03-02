@@ -21,6 +21,7 @@ $(function() {
                 },
                 seriesColors: [
                     '#DDDDDD',
+                    '#000000',
                     '#D2E4EA',
                     '#81bf40',
                     '#FFA500',

@@ -25,7 +25,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.7.4',
+            'version' => '0.7.5',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -771,12 +771,18 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             }
             
             // string representation of the status of this link
-            $status_error = $this->_("Error checking this link");
-            $status_code = "<span title='{$status_error}'>" . $this->_("none") . "</span>";
+            $status_title = $this->_("Error checking this link");
+            $status_code = "<span title='{$status_title}'>" . $this->_("none") . "</span>";
             $status_str = "<div class='status status-none'>{$status_code}</div>";
             if ($row['status']) {
-                $status_code = "<span title='" . $this->status_codes[$row['status']] . "'>{$row['status']}</span>";
-                $status_str = "<div class='status status-" . substr($row['status'], 0, 1) . "xx status-{$row['status']}'>{$status_code}</div>";
+                $status_title = __("Unknown or non-standard status code");
+                $status_type = "unknown";
+                if (isset($this->status_codes[$row['status']])) {
+                    $status_title = $this->status_codes[$row['status']];
+                    $status_type = substr($row['status'], 0, 1) . "xx";
+                }
+                $status_code = "<span title='{$status_title}'>{$row['status']}</span>";
+                $status_str = "<div class='status status-{$status_type} status-{$row['status']}'>{$status_code}</div>";
             }
             
             // construct table row
@@ -869,6 +875,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
                      . "</tr></thead>";
         $json = array(
             'none' => array($this->_("none"), 0),
+            'unknown' => array($this->_("unknown"), 0),
             '1xx' => array('1xx', 0),
             '2xx' => array('2xx', 0),
             '3xx' => array('3xx', 0),
@@ -888,13 +895,19 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             if (is_null($row['status'])) {
                 $row['status'] = $this->_("none");
                 $key = "none";
-            } else {
+            } else if (isset($this->status_codes[$row['status']])) {
                 $key = $row['status'][0] . "xx";
+            } else {
+                $key = "unknown";
             }
             $json[$key][1] += $row['count'];
             $percentage = $row['count'] && $total ? round(($row['count']/$total)*100, 2) : 0;
+            $status_title = $this->_("Error checking this link");
+            if ((int) $row['status']) {
+                $status_title = isset($this->status_codes[(int) $row['status']]) ? $this->status_codes[(int) $row['status']] : __("Unknown or non-standard status code");
+            }
             $markup_rows .= "<tr class='c{$key}'>"
-                          . "<td title='" . ((int) $row['status'] ? $this->status_codes[$row['status']] : $this->_("Error checking this link")) . "'><span></span> {$row['status']}</td>"
+                          . "<td title='{$status_title}'><span></span> {$row['status']}</td>"
                           . "<td>{$row['count']}</td>"
                           . "<td>{$percentage}%</td>"
                           . "</tr>";

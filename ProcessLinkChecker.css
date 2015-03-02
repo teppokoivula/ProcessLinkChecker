@@ -51,6 +51,11 @@
     background: #DDDDDD;
 }
 
+.status-unknown {
+    color: #eee;
+    background: #000;
+}
+
 .status-5xx {
     background: red;
 }
@@ -306,6 +311,10 @@ button[name=check-now] {
 
 #status-breakdown .data tr.cnone td span {
     background: #DDDDDD;
+}
+
+#status-breakdown .data tr.cunknown td span {
+    background: #000000;
 }
 
 #status-breakdown .data tr.c1xx td span {
