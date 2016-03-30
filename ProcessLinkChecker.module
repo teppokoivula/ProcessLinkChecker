@@ -3,7 +3,7 @@
 /**
  * Process Link Checker
  *
- * @copyright Copyright (c) 2014-2015, Teppo Koivula
+ * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
@@ -25,7 +25,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.7.5',
+            'version' => '0.8.0',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -161,6 +161,12 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         'redirects' => 'links.skip = 0 AND links.status BETWEEN 300 AND 399 AND links.status NOT IN (302,304,307)',
         'skipped-links' => 'links.skip = 1',
     );
+
+    /**
+     * Instance of LinkCrawler
+     *
+     */
+    protected $crawler;
     
     /**
      * Populate the default config data
@@ -440,6 +446,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $this->config->js($this->className(), array(
             'i18n' => array(
                 'commentPrompt' => $this->_("Type in comment text for this link (max 255 characters)"),
+                'filterStatus' => $this->_("Filter by status"),
             ),
             'processPage' => $this->process_page->url(),
         ));
@@ -450,12 +457,12 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $tabs = new InputfieldWrapper();
         $tabs->add($this->buildDashboard());
         $tabs->add($this->buildLinksTab(
-            'broken-links', 
-            $this->_("Broken Links"), 
+            'broken-links',
+            $this->_("Broken Links"),
             $this->_("Congratulations, no broken links found!")
         ));
         $tabs->add($this->buildLinksTab(
-            'redirects', 
+            'redirects',
             $this->_("Redirects"),
             $this->_("No redirects have been identified yet.")
         ));
@@ -591,24 +598,27 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         set_time_limit(0);
         ignore_user_abort(true);
 
-        // load and instantiate Link Crawler
-        require $this->config->paths->{$this->className()} . "LinkCrawler.php";
-        $options = array('log_level' => 4, 'log_on_screen' => true);
-        $crawler = new LinkCrawler($options);
+        if (!$this->crawler) {
+            // load and instantiate Link Crawler
+            require_once $this->config->paths->{$this->className()} . "LinkCrawler.php";
+            $this->crawler = new LinkCrawler();
+        }
+        $this->crawler->setConfig('log_level', 4);
+        $this->crawler->setConfig('log_on_screen', true);
 
         // run Link Crawler and capture output
         ob_start();
         echo "<pre class='link-crawler-output'>";
-        $crawler->start();
-        $time = wireRelativeTimeStr($crawler->stats['time_start']);
+        $this->crawler->start();
+        $time = wireRelativeTimeStr($this->crawler->stats['time_start']);
         $summary = vsprintf(
             $this->_("Done! %d/%d Pages and %d/%d links checked in %s."),
             array(
-                $crawler->stats['pages_checked'], 
-                $crawler->stats['pages'], 
-                $crawler->stats['links_checked'], 
-                $crawler->stats['links'], 
-                $crawler->stats['time_total'],
+                $this->crawler->stats['pages_checked'], 
+                $this->crawler->stats['pages'], 
+                $this->crawler->stats['links_checked'], 
+                $this->crawler->stats['links'], 
+                $this->crawler->stats['time_total'],
             )
         );
         echo "</pre>";
@@ -617,6 +627,39 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
 
         return $out;
 
+    }
+
+    /**
+     * Run link check (LinkCrawler) for one Page
+     * 
+     * Note: this isn't currently used by any internal features, but could be
+     * useful in the future if, for an example, asynchronous client-side page
+     * checking is needed.
+     * 
+     * @throws WireException if $page_id is invalid
+     */
+    public function executeCheckPage() {
+        
+        // fetch Page ID from GET param 'page_id' and make sure it's an integer
+        $page_id = (int) $this->input->get->page_id;
+        if (!$page_id) {
+            throw new WireException("Invalid or missing value for GET param 'page_id'");
+        }
+        
+        // load and instantiate Link Crawler (unless already instantiated)
+        if (!$this->crawler) {
+            require_once $this->config->paths->{$this->className()} . "LinkCrawler.php";
+            $this->crawler = new LinkCrawler();
+        }
+
+        // start Link Crawler with predefined configuration settings
+        $this->crawler->setConfig('selector', 'id=' . $page_id . ', include=all');
+        $this->crawler->setConfig('log_level', 4);
+        $this->crawler->setConfig('log_on_screen', 'log_always');
+        $this->crawler->start();
+        
+        exit;
+        
     }
 
     /**
@@ -828,6 +871,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $fieldset->attr('id', 'link-checker-dashboard');
         $fieldset->attr('class', 'link-checker-tab');
         $fieldset->attr('title', $this->_("Dashboard"));
+        $fieldset->skipLabel = 2; // Inputfield::skipLabelHeader
         $fieldset->label = "&nbsp;";
 
         // overview
@@ -906,8 +950,15 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             if ((int) $row['status']) {
                 $status_title = isset($this->status_codes[(int) $row['status']]) ? $this->status_codes[(int) $row['status']] : __("Unknown or non-standard status code");
             }
+            $table = '';
+            if (!$row['status'] || $row['status'] >= 400) {
+                $table = 'broken-links';
+            } else if ($row['status'] >= 300 && $row['status'] <= 399 && !in_array($row['status'], array(302, 304, 307))) {
+                $table = 'redirects';
+            }
+            $status = $table ? "<a class='link-checker-table' data-table='{$table}' data-filter='status' href='#status-{$row['status']}'>{$row['status']}</a>" : $row['status'];
             $markup_rows .= "<tr class='c{$key}'>"
-                          . "<td title='{$status_title}'><span></span> {$row['status']}</td>"
+                          . "<td title='{$status_title}'><span></span> {$status}</td>"
                           . "<td>{$row['count']}</td>"
                           . "<td>{$percentage}%</td>"
                           . "</tr>";
@@ -937,7 +988,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $inputfield->attr('class', 'link-checker-tab');
         $inputfield->attr('title', $title);
         $inputfield->description = $description;
-        $inputfield->label = "&nbsp;";
         return $inputfield;
     }
 
@@ -952,7 +1002,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $inputfield->attr('title', $this->_("Check now"));
         $inputfield->attr('id', 'link-checker-check-now');
         $inputfield->description = $this->_("Run Link Crawler right now? Note: this may take a long time.");
-        $inputfield->label = "&nbsp;";
 
         $src = $this->process_page->url() . "check?modal=1";
         $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";

@@ -1,5 +1,5 @@
-$(function() {
-
+var processLinkCheckerDashboard = function() {
+    
     // draw dashboard diagrams
     var plotName1 = 'status-breakdown-plot';
     var plotData1 = $('#' + plotName1).data('json');
@@ -75,7 +75,7 @@ $(function() {
     
     if (plotData1 || plotData2) {
         var plotTimeout;
-        $(window).on('resize', function() {
+        $(window).on('resize.jqplot', function() {
             window.clearTimeout(plotTimeout);
             plotTimeout = window.setTimeout(function() {
                 if (plotData1) plot1.replot();
@@ -96,4 +96,4 @@ $(function() {
         }
     });
     
-});
+}

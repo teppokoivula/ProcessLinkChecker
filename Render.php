@@ -2,7 +2,11 @@
 
 /**
  * Render one Page. This file is only intended to be accessed via LinkCrawler.
- *
+ * 
+ * @author Teppo Koivula <teppo.koivula@gmail.com>
+ * @copyright Copyright (c) 2014-2016, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ * @version 0.8.0
  */
 
 // disable error reporting
@@ -20,10 +24,16 @@ require rtrim($root, "/") . "/index.php";
 // load and render Page
 $page_id = (int) $argv[2];
 if ($page_id) {
-    $page = wire('pages')->get($page_id);
-    try {
-        echo @$page->render();
-    } catch (Exception $e) {
-        // cool story, bro!
+    $page = function_exists('wire') ? wire('pages')->get($page_id) : $wire->pages->get($page_id);
+    $status = $page->status;
+    if ($page->isUnpublished) {
+        $page->removeStatus('unpublished');
     }
+    try {
+        echo $page->render();
+    } catch (Exception $e) {
+        echo $e->getMessage();
+        exit(1);
+    }
+    $page->status = $status;
 }

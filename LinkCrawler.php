@@ -15,9 +15,9 @@
  * @todo consider adding (separate) domain-based throttling
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
- * @copyright Copyright (c) 2014-2015, Teppo Koivula
+ * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.6.0
+ * @version 0.7.0
  *
  */
 class LinkCrawler {
@@ -56,12 +56,12 @@ class LinkCrawler {
      * for various safety and compatibility reasons. Available options:
      *     - render_page
      *     - render_fields
-     *     - shell_exec
+     *     - exec
      */
     protected $render_method = 'render_page';
     
     /**
-     * Additional settings for the 'shell_exec' render method
+     * Additional settings for the 'exec' render method
      * 
      * Render file is the path of the PHP file used to render pages, while PHP
      * binary is the path of the PHP binary itself.
@@ -230,7 +230,7 @@ class LinkCrawler {
             $this->log(sprintf(
                 "BATCH: %d/%d (pages %d-%d/%d)",
                 $batch+1,
-                $batches+1,
+                $batches,
                 $start_selector->value + 1,
                 $start_selector->value + $limit_selector->value,
                 $limit
@@ -280,10 +280,9 @@ class LinkCrawler {
      * 
      * @param Page $page
      * @return bool whether or not a Page was checked
-     * @throws Exception if render method is shell_exec but PHP binary isn't defined
-     * @throws Exception if render method is shell_exec but rener file isn't found
+     * @throws Exception if render method is exec but PHP binary isn't defined
+     * @throws Exception if render method is exec but rener file isn't found
      * @throws Exception if render method is unrecognized
-     * @todo check if fatal errors could be logged and/or sent to admin with shell_exec method
      */
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
@@ -311,7 +310,8 @@ class LinkCrawler {
                     $data .= $field_value;
                 }
                 break;
-            case 'shell_exec':
+            case 'shell_exec': // temporary, added for backwards compatibility
+            case 'exec':
                 if (!$this->php_binary) {
                     if (version_compare(PHP_VERSION, "5.4.0") >= 0 && defined("PHP_BINARY")) {
                         $this->php_binary = PHP_BINARY;
@@ -326,13 +326,19 @@ class LinkCrawler {
                     }
                 }
                 $command = escapeshellcmd(sprintf(
-                    '%s %s %s %s 2>/dev/null',
+                    '%s %s %s %s',
                     escapeshellarg($this->php_binary),
                     escapeshellarg($this->render_file),
                     escapeshellarg($this->root),
                     escapeshellarg((int) $page->id)
                 ));
-                $data = shell_exec($command);
+                exec($command, $output, $return_var);
+                $output_string = implode($output);
+                if (!$return_var) {
+                    $data = $output_string;
+                } else {
+                    $this->log("ERROR: {$output_string}\t{$page->url}", 3, true);
+                }
                 break;
             default:
                 throw new Exception("Unrecognized render method");
@@ -386,8 +392,7 @@ class LinkCrawler {
             while ($rec_depth < $this->config->max_recursion_depth && $rec_headers['location']) {
                 ++$rec_depth;
                 $rec_url = $rec_headers['location'];
-                // @todo if get_headers() is allowed to follow_location, something like this is required:
-                // if (is_array($rec_url)) $rec_url = array_pop($rec_url);
+                // @todo if get_headers() is allowed to follow_location, something like this is required: if (is_array($rec_url)) $rec_url = array_pop($rec_url);
                 $rec_headers = $this->getHeaders($rec_url);
                 if ($rec_headers['status'] != 301 && $rec_headers['status'] != 302) {
                     // update location only if non-redirect location was found
@@ -600,17 +605,20 @@ class LinkCrawler {
      * @param int $log_level
      * @return string log filename
      */
-    protected function log($message = null, $log_level = 1) {
-        if ($this->config->log_level >= $log_level && $message) {
+    protected function log($message = null, $log_level = 1, $log_always = false) {
+        if ($message && ($log_always || $this->config->log_level >= $log_level)) {
+            if ($log_always && $log_level > $this->config->log_level) {
+                $log_level = $this->config->log_level ? $this->config->log_level+1 : 1;
+            }
             if (is_array($message)) {
                 // recursive logging
                 foreach ($message as $part) {
-                    $this->log($part, $log_level);
+                    $this->log($part, $log_level, $log_always);
                 }
             } else {
                 $padding = str_repeat(" ", 4 * (int) $log_level);
                 @wire('log')->save(strtolower(__CLASS__), $padding . $message);
-                if ($this->config->log_on_screen) {
+                if ($this->config->log_on_screen && ($this->config->log_on_screen !== 'log_always' || $log_always)) {
                     // log messages on screen
                     echo date("Y-m-d H:i:s") . "\t" . wire('user')->name . "\t" . $padding . $message . "\n";
                 }
@@ -652,13 +660,32 @@ class LinkCrawler {
     /**
      * Get value of property or config setting (or null if neither exists)
      * 
-     * @param $name property or config setting name
+     * @param string $name property or config setting name
      * @return mixed property or config setting value (or null)
      */
     public function __get($name) {
         if (isset($this->{$name})) return $this->{$name};
         if (isset($this->config->{$name})) return $this->config->{$name};
         return false;
+    }
+
+    /**
+     * Set value of config setting
+     * 
+     * @param string|array $name config setting name or array of key/value pairs
+     * @param mixed $value config setting value
+     * @throws Exception if $name param is invalid
+     */
+    public function setConfig($name, $value = null) {
+        if (is_string($name)) {
+            $this->config->{$name} = $value;
+        } else if (is_array($name) && count($name)) {
+            foreach ($name as $key => $value) {
+                $this->setConfig($key, $value);
+            }
+        } else {
+            throw new WireException("Invalid 'name' param");
+        }
     }
 
 }

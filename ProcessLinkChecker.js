@@ -12,6 +12,11 @@ $(function() {
             return false;
         });
 
+    // build the dashboard tab
+    if (typeof processLinkCheckerDashboard == 'function') {
+        processLinkCheckerDashboard();
+    }
+
     // run Link Crawler on button click in Admin
     $('button[name=check-now]').on('click', function() {
         $(this)
@@ -29,6 +34,11 @@ $(function() {
                     $('#' + $(this).attr('id')).html($(this).html());
                 });
                 updateLinkTablePlaceholders();
+                parent.$(window).off('resize.jqplot');
+                // note: timeout seems to fix certain replot issues
+                parent.setTimeout(function() {
+                    parent.processLinkCheckerDashboard();
+                }, 2000);
             });
         });
     });
@@ -57,6 +67,18 @@ $(function() {
                 });
             });
             return false;
+        })
+        .on('change', 'form.link-checker-filters select', function() {
+            var val = $(this).val();
+            var name = $(this).attr('name');
+            var $tbody = $(this).parents('form:first').next('table').find('tbody');
+            $tbody.find('tr').show();
+            if (val) {
+                $tbody.find('tr:not(:has(.' + name + '-' + val + '))').hide();
+                window.location.hash = name + '-' + val;
+            } else {
+                window.location.hash = '';
+            }
         })
         .on('change', '.AdminDataTable input[name=skip]', function() {
             // mark link skipped
@@ -106,13 +128,52 @@ $(function() {
                 tables[table] = 1;
                 $loader.remove();
                 if (data) {
-                    $description.after(data).hide();
+                    var $filters = $('<form class="link-checker-filters" data-table="' + table + '">');
+                    var $filters_status = $('<select name="status">');
+                    $filters_status.append($('<option>').attr('value', '').text(moduleConfig.i18n.filterStatus));
+                    var statuses = [];
+                    $.each($(data).find('.status'), function() {
+                        var status = $(this).text();
+                        statuses[status] = statuses[status] ? statuses[status] + 1 : 1;
+                    });
+                    for (var status in statuses) {
+                        var $option = $('<option>').attr('value', status).text(status + ' (' + statuses[status] + ')');
+                        $filters_status.append($option);
+                        if (window.location.hash == '#status-' + status) {
+                            $option.attr('selected', 'selected');
+                        }
+                    }
+                    $filters.append($filters_status);
+                    // note: filters are currently hidden from the GUI; making
+                    // them visible is an option in the future, but currently
+                    // they don't seem to add much value
+                    $filters.hide();
+                    $description.after(data);
+                    $description.after($filters);
+                    if ($filters.find('option[selected=selected]')) {
+                        $filters.find('option[selected=selected]').parent().trigger('change');
+                    }
                     $('table.' + table).tablesorter();
                 } else {
                     $description.show();
                 }
             });
         }
+    });
+
+    // enable opening tabs via links
+    $('a[data-table]').on('click', function() {
+        var table = $(this).data('table');
+        var filter = $(this).data('filter');
+        if (filter) {
+            var $filters = $('form.link-checker-filters[data-table=' + table + ']');
+            if ($filters.length) {
+                $filters.find('[name=' + filter + ']').val($(this).text()).trigger('change');
+            }
+        }
+        window.location.hash = $(this).attr('href');
+        $('a[href=#link-checker-' + table + ']').trigger('click');
+        return false;
     });
     
 });
