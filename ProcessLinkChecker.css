@@ -103,14 +103,12 @@ button[name=check-now] {
 .link-crawler-container.loading {
     height: 3em;
     display: block;
-    margin-top: 2em;
     background: url('./loading.gif') 0 0 no-repeat transparent;
 }
 
 .link-crawler-container.ready {
     height: 600px;
     display: block;
-    margin-top: 2em;
     border: 1px solid #eee;
 }
 

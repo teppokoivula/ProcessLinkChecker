@@ -1,5 +1,9 @@
 <?php
 
+use \ProcessWire\Page;
+use \ProcessWire\Selectors;
+use \ProcessWire\SelectorEqual;
+
 /**
  * Link Crawler
  * 
@@ -17,7 +21,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.7.0
+ * @version 0.8.0
  *
  */
 class LinkCrawler {
@@ -58,7 +62,7 @@ class LinkCrawler {
      *     - render_fields
      *     - exec
      */
-    protected $render_method = 'render_page';
+    protected $render_method = 'render_fields';
     
     /**
      * Additional settings for the 'exec' render method
@@ -92,12 +96,24 @@ class LinkCrawler {
     protected $stmt_insert_history = null;
 
     /**
+     * Instance of ProcessWire for internal use
+     * 
+     */
+    protected $wire;
+
+    /**
      * Constants containing names of used database tables
      * 
      */
     const TABLE_LINKS = 'link_checker_links';
     const TABLE_LINKS_PAGES = 'link_checker_links_pages';
     const TABLE_HISTORY = 'link_checker_history';
+
+    /**
+     * Constant containing the name of the log file
+     *
+     */
+    const LOG_FILE = 'link_checker';
     
     /**
      * Fetch config settings from ProcessWire module and bootstrap ProcessWire
@@ -119,10 +135,12 @@ class LinkCrawler {
             if (is_null($root)) $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
             require rtrim($root, "/") . "/index.php";
         }
+        $this->wire = $wire ?: wire(); // @todo do we need the fallback?
         $this->root = $root;
         // setup config object
+        $this->wire->modules->getModule('ProcessLinkChecker', array('noPermissionCheck' => true));
         $default_data = ProcessLinkChecker::getDefaultData();
-        $data = wire('modules')->getModuleConfigData('ProcessLinkChecker');
+        $data = $this->wire->modules->getModuleConfigData('ProcessLinkChecker');
         $this->config = (object) array_merge($default_data, $data, $options);
         // link regex is required
         if (!$this->config->link_regex) {
@@ -138,8 +156,8 @@ class LinkCrawler {
         // merge skipped and cached links from database with defaults
         if (!$this->config->skipped_links) $this->config->skipped_links = array();
         $this->config->skipped_links = array_fill_keys($this->config->skipped_links, null);
-        $interval = wire('database')->escapeStr($this->config->cache_max_age);
-        $query = wire('database')->query("SELECT url FROM " . self::TABLE_LINKS . " WHERE skip = 1 OR checked > DATE_SUB(NOW(), INTERVAL $interval)");
+        $interval = $this->wire->database->escapeStr($this->config->cache_max_age);
+        $query = $this->wire->database->query("SELECT url FROM " . self::TABLE_LINKS . " WHERE skip = 1 OR checked > DATE_SUB(NOW(), INTERVAL $interval)");
         $links = $query->fetchAll(PDO::FETCH_COLUMN);
         if (count($links)) {
             $this->config->skipped_links = array_merge($this->config->skipped_links, array_fill_keys($links, null));
@@ -161,10 +179,12 @@ class LinkCrawler {
             ),
         ));
         // prepare PDO statements for later use
-        $this->stmt_select_id = wire('database')->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE url = :url LIMIT 1");
-        $this->stmt_insert_links = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS . " (url, status, location) VALUES (:url, :status, :location) ON DUPLICATE KEY UPDATE url = VALUES(url), status = VALUES(status), location = VALUES(location), checked = NOW()");
-        $this->stmt_insert_links_pages = wire('database')->prepare("INSERT INTO " . self::TABLE_LINKS_PAGES . " (links_id, pages_id) VALUES (:links_id, :pages_id) ON DUPLICATE KEY UPDATE links_id = VALUES(links_id), pages_id = VALUES(pages_id)");
-        $this->stmt_insert_history = wire('database')->prepare("INSERT INTO " . self::TABLE_HISTORY . " (time_start, pages, pages_checked, links, links_checked, unique_links, status) VALUES (:time_start, :pages, :pages_checked, :links, :links_checked, :unique_links, :status)");
+        $this->stmt_select_id = $this->wire->database->prepare("SELECT id FROM " . self::TABLE_LINKS . " WHERE url = :url LIMIT 1");
+        $this->stmt_insert_links = $this->wire->database->prepare("INSERT INTO " . self::TABLE_LINKS . " (url, status, location) VALUES (:url, :status, :location) ON DUPLICATE KEY UPDATE url = VALUES(url), status = VALUES(status), location = VALUES(location), checked = NOW()");
+        $this->stmt_insert_links_pages = $this->wire->database->prepare("INSERT INTO " . self::TABLE_LINKS_PAGES . " (links_id, pages_id) VALUES (:links_id, :pages_id) ON DUPLICATE KEY UPDATE links_id = VALUES(links_id), pages_id = VALUES(pages_id)");
+        $this->stmt_insert_history = $this->wire->database->prepare("INSERT INTO " . self::TABLE_HISTORY . " (time_start, pages, pages_checked, links, links_checked, unique_links, status) VALUES (:time_start, :pages, :pages_checked, :links, :links_checked, :unique_links, :status)");
+        // load other required files
+        require dirname(__FILE__) . '/CheckableValue.php';
     }
 
     /**
@@ -182,8 +202,8 @@ class LinkCrawler {
             $this->log("START: {$this->config->selector}");
         }
         // cleanup any expired data
-        $interval = wire('database')->escapeStr($this->config->cache_max_age);
-        wire('database')->query("
+        $interval = $this->wire->database->escapeStr($this->config->cache_max_age);
+        $this->wire->database->query("
             DELETE links, links_pages 
             FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
             WHERE links.skip = 0 AND links.checked < DATE_SUB(NOW(), INTERVAL $interval) AND links_pages.links_id = links.id
@@ -192,7 +212,7 @@ class LinkCrawler {
         $start = 0;
         $start_selector = null;
         $selectors = new Selectors($this->config->selector);
-        $this->stats['pages'] = wire('pages')->count($selectors);
+        $this->stats['pages'] = $this->wire->pages->count((string) $selectors);
         $limit = $this->stats['pages'];
         foreach ($selectors as $selector) {
             if ($selector->field == "limit") {
@@ -235,10 +255,10 @@ class LinkCrawler {
                 $start_selector->value + $limit_selector->value,
                 $limit
             ));
-            $pages = wire('pages')->find($selectors);
+            $pages = $this->wire->pages->find((string) $selectors);
             foreach ($pages as $page) {
                 $this->log("FOUND Page: {$page->url}", 2);
-                wire('pages')->uncacheAll();
+                $this->wire->pages->uncacheAll();
                 if ($this->checkPage($page)) {
                     ++$this->stats['pages_checked'];
                 }
@@ -250,9 +270,8 @@ class LinkCrawler {
                 $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
             }
         }
-        if ((int) ($time = wireRelativeTimeStr($this->stats['time_start']))) {
-            $this->stats['time_total'] = substr($time, 0, strpos($time, " ", strpos($time, " ")+1));
-        }
+        $time = function_exists("wireRelativeTimeStr") ? wireRelativeTimeStr($this->stats['time_start']) : \ProcessWire\wireRelativeTimestr($this->stats['time_start']);
+        if ((int) $time) $this->stats['time_total'] = substr($time, 0, strpos($time, " ", strpos($time, " ")+1));
         $this->log(sprintf(
             "END: %d/%d Pages and %d/%d links checked in %s. Status breakdown: %s.",
             $this->stats['pages_checked'],
@@ -286,7 +305,11 @@ class LinkCrawler {
      */
     protected function checkPage(Page $page) {
         // skip admin pages and non-viewable pages
-        if ($this->isCheckablePage($page) == "") return false;
+        $isCheckablePage = $this->isCheckablePage($page);
+        if (!$isCheckablePage->status) {
+            $this->log($isCheckablePage->message, 4);
+            return false;
+        }
         // throttle requests to avoid unnecessary (local and external) load
         if ($this->stats['pages_checked'] && $this->config->sleep_between_pages) {
             usleep($this->config->sleep_between_pages);
@@ -408,7 +431,7 @@ class LinkCrawler {
         $this->stmt_insert_links->bindValue(':status', $headers['status'], PDO::PARAM_STR);
         $this->stmt_insert_links->bindValue(':location', $headers['location'], PDO::PARAM_STR);
         $this->stmt_insert_links->execute();
-        $links_id = wire('database')->lastInsertId();
+        $links_id = $this->wire->database->lastInsertId();
         $this->stmt_insert_links_pages->bindValue(':links_id', $links_id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->execute();
@@ -456,7 +479,7 @@ class LinkCrawler {
      * @param Page $page
      * @return CheckableValue
      */
-    protected function isCheckableURL($url, $page) {
+    protected function isCheckableURL($url, Page $page) {
         if (strpos($url, ".") === 0) {
             // URL is relative to current page's path, expand before processing
             // @todo consider adding an option for skipping over URLs like this
@@ -471,7 +494,7 @@ class LinkCrawler {
             return $return;
         }
         $this->skipped_links[$url] = true;
-        if (strpos($url, wire('config')->urls->admin) === 0) {
+        if (strpos($url, $this->wire->config->urls->admin) === 0) {
             // admin URLs should always be skipped automatically
             $return->message = "admin URL";
             return $return;
@@ -598,11 +621,12 @@ class LinkCrawler {
     /**
      * Write message to log file
      * 
-     * This is a wrapper for ProcessWire's wire('log') function, mainly added
+     * This is a wrapper for ProcessWire's $log->save() function, mainly added
      * to keep code clean and provide varying logging levels etc.
      * 
      * @param string|array $message
      * @param int $log_level
+     * @param bool $log_always
      * @return string log filename
      */
     protected function log($message = null, $log_level = 1, $log_always = false) {
@@ -617,14 +641,16 @@ class LinkCrawler {
                 }
             } else {
                 $padding = str_repeat(" ", 4 * (int) $log_level);
-                @wire('log')->save(strtolower(__CLASS__), $padding . $message);
+                @$this->wire->log->save(self::LOG_FILE, $padding . $message);
                 if ($this->config->log_on_screen && ($this->config->log_on_screen !== 'log_always' || $log_always)) {
                     // log messages on screen
-                    echo date("Y-m-d H:i:s") . "\t" . wire('user')->name . "\t" . $padding . $message . "\n";
+                    echo date("Y-m-d H:i:s") . "\t" . $this->wire->user->name . "\t" . $padding . $message . "\n";
+                    flush();
+                    ob_flush();
                 }
             }
         }
-        return wire('log')->getFilename(strtolower(__CLASS__));
+        return $this->wire->log->getFilename(self::LOG_FILE);
     }
 
     /**
@@ -684,63 +710,8 @@ class LinkCrawler {
                 $this->setConfig($key, $value);
             }
         } else {
-            throw new WireException("Invalid 'name' param");
+            throw new Exception("Invalid 'name' param");
         }
     }
 
-}
-
-/**
- * Checkable Value
- * 
- * Used as a return value for isCheckable* methods in Link Crawler.
- *
- * @author Teppo Koivula <teppo.koivula@gmail.com>
- * @copyright Copyright (c) 2015, Teppo Koivula
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.6.0
- */
-class CheckableValue {
-    
-    /**
-     * Value of this object; target of the checkable test
-     * 
-     */
-    public $value = "";
-
-    /**
-     * Checkable status of value ("is the value checkable?")
-     *
-     */
-    public $status = false;
-
-    /**
-     * Message related to the status ("why is/isn't the value checkable?")
-     *
-     */
-    public $message = "";
-
-    /**
-     * Uniqueness of the value ("is this value being checked for the first time?")
-     *
-     */
-    public $unique = true;
-
-    /**
-     * Constructor method
-     * 
-     * @param mixed $value
-     */
-    public function __construct($value) {
-        $this->value = $value;
-    }
-    
-    /**
-     * When treated like a string, return value or empty, depending on status
-     * 
-     * @return string
-     */
-    public function __toString() {
-        return $this->status ? (string) $this->value : "";
-    }
 }

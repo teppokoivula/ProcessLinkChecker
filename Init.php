@@ -13,4 +13,7 @@ ignore_user_abort(true);
 // load, instantiate and run Link Crawler
 require __DIR__ . '/LinkCrawler.php';
 $crawler = new LinkCrawler();
+$crawler->setConfig('selector', 'template=basic-page');
+$crawler->setConfig('log_level', 5);
+$crawler->setConfig('log_on_screen', true);
 $crawler->start();

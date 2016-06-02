@@ -25,7 +25,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.8.0',
+            'version' => '0.9.0',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -215,6 +215,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         }
         $field->name = "selector";
         $field->label = __("Selector");
+        $field->icon = "search";
         $field->value = $data[$field->name];
         $field->description = __("Selector for finding pages to check for broken links.");
         $fields->add($field);
@@ -587,9 +588,15 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      * LinkCrawler via Cron.
      *
      * @return string Link Crawler output
+     * @throws WirePermissionException if user doesn't have 'link-checker-run' permission
      */
     public function executeCheck() {
 
+        // check permissions
+        if (!$this->user->hasPermission('link-checker-run')) {
+            throw new WirePermissionException();
+        }
+        
         // load scripts and styles
         $this->config->scripts->append($this->config->urls->{$this->className()} . $this->className() . ".js");
         $this->config->styles->append($this->config->urls->{$this->className()} . $this->className() . ".css");
@@ -605,6 +612,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         }
         $this->crawler->setConfig('log_level', 4);
         $this->crawler->setConfig('log_on_screen', true);
+        if ($selector = $this->input->cookie->link_checker_selector) {
+            $this->crawler->setConfig('selector', $selector);
+        }
 
         // run Link Crawler and capture output
         ob_start();
@@ -622,7 +632,11 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             )
         );
         echo "</pre>";
-        echo "<script type='text/javascript'>$('.link-crawler-output').fadeIn(); parent.$('.link-crawler-container').addClass('ready'); parent.$('#link-checker-check-now p.description').trigger('finished', ['{$summary}']);</script>";
+        echo "<script type='text/javascript'>"
+           . "\$('.link-crawler-output').fadeIn();"
+           . "parent.\$('.link-crawler-container').addClass('ready');"
+           . "parent.\$('.link-crawler-summary').trigger('finished', ['{$summary}']);"
+           . "</script>";
         $out = ob_get_clean();
 
         return $out;
@@ -634,9 +648,12 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      * 
      * Note: this isn't currently used by any internal features, but could be
      * useful in the future if, for an example, asynchronous client-side page
-     * checking is needed.
+     * checking is needed. For this reason it could make sense to output JSON
+     * string containing erroneous links (or something similar).
      * 
      * @throws WireException if $page_id is invalid
+     * @throws WireException if $page_id doesn't match an existing page
+     * @throws WirePermissionException if page isn't editable by current user
      */
     public function executeCheckPage() {
         
@@ -644,6 +661,17 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $page_id = (int) $this->input->get->page_id;
         if (!$page_id) {
             throw new WireException("Invalid or missing value for GET param 'page_id'");
+        }
+
+        // fetch page
+        $page = $this->pages->get($page_id);
+        if (!$page->id) {
+            throw new WireException("Page doesn't exist (id: {$page_id})");
+        }
+        
+        // make sure that the page is editable by current user
+        if (!$page->editable()) {
+            throw new WirePermissionException();
         }
         
         // load and instantiate Link Crawler (unless already instantiated)
@@ -655,7 +683,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // start Link Crawler with predefined configuration settings
         $this->crawler->setConfig('selector', 'id=' . $page_id . ', include=all');
         $this->crawler->setConfig('log_level', 4);
-        $this->crawler->setConfig('log_on_screen', 'log_always');
+        $this->crawler->setConfig('log_on_screen', true);
         $this->crawler->start();
         
         exit;
@@ -724,6 +752,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // drop database tables
         $this->dropTable(self::TABLE_LINKS);
         $this->dropTable(self::TABLE_LINKS_PAGES);
+        $this->dropTable(self::TABLE_HISTORY);
         
         // find and delete the page we installed
         $moduleID = $this->modules->getModuleID($this); 
@@ -994,23 +1023,54 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     /**
      * Build "check now" tab
      * 
-     * @return InputfieldMarkup
+     * @return InputfieldFieldset
      */
     protected function buildCheckNow() {
+        
+        // load jQuery Core with the Cookie plugin enabled
+        $this->wire('modules')->get('JqueryCore')->use('cookie');
+        
+        // setup fieldset
+        $fieldset = new InputfieldFieldset();
+        $fieldset->attr('id', 'link-checker-check-now');
+        $fieldset->attr('class', 'link-checker-tab');
+        $fieldset->attr('title', '<i class="fa fa-refresh" id="link-checker-check-now-icon"></i> ' . $this->_("Check now"));
+        $fieldset->skipLabel = 2; // Inputfield::skipLabelHeader
+        $fieldset->label = "&nbsp;";
 
-        $inputfield = new InputfieldMarkup();
-        $inputfield->attr('title', $this->_("Check now"));
-        $inputfield->attr('id', 'link-checker-check-now');
-        $inputfield->description = $this->_("Run Link Crawler right now? Note: this may take a long time.");
+        // info
+        $field = new InputfieldMarkup();
+        $field->label = $this->_("Running the Link Crawler manually");
+        $field->value = "<p>" . $this->_("Please note that once started, the Link Crawler may take a long time to finish and although it attempts to keep running even if you close the browser window or tab, it is recommended that you don't do this until the check is completed. Link Crawler is intended to be ran as a background process (cron job) and the manual option is provided mainly for debugging purposes.") . "</p>"
+                      . "<p><em>" . $this->_("This tab contains minimal configuration options; for more, check out the module configuration page.") . "</em></p>";
+        $field->icon = "info-circle";
+        $fieldset->add($field);
 
-        $src = $this->process_page->url() . "check?modal=1";
-        $iframe = "<iframe class='link-crawler-container' seamless data-src='{$src}'></iframe>";
+        // selector for finding pages to check for broken links
+        if (wire('modules')->isInstalled('InputfieldSelector')) {
+            $field = wire('modules')->get('InputfieldSelector');
+        } else {
+            $field = wire('modules')->get('InputfieldText');
+        }
+        $field->name = "selector";
+        $field->label = __("Selector");
+        $field->icon = "search";
+        $field->value = $this->{$field->name};
+        $field->description = __("Selector for finding pages to check for broken links.");
+        $fieldset->add($field);
+
+        // submit button and iframe to contain link crawler results
+        $field = new InputfieldMarkup();
+        $field->value = "<iframe class='link-crawler-container' seamless data-src='" . $this->process_page->url() . "check?modal=1'></iframe>";
+        $field->value .= "<p class='link-crawler-summary'></p>";
         $button = $this->modules->get('InputfieldButton');
         $button->name = "check-now";
+        $button->icon = "refresh";
         $button->value = $this->_("Check now");
-        $inputfield->value = $button->render() . $iframe;
+        $field->value .= $button->render();
+        $fieldset->add($field);
 
-        return $inputfield;
+        return $fieldset;
 
     }
     

@@ -75,13 +75,18 @@ var processLinkCheckerDashboard = function() {
     
     if (plotData1 || plotData2) {
         var plotTimeout;
-        $(window).on('resize.jqplot', function() {
+        var replot = function(event) {
+            if (event.type == 'wiretabclick' && !$('#_link-checker-dashboard').hasClass('on')) {
+                return false;
+            }
             window.clearTimeout(plotTimeout);
             plotTimeout = window.setTimeout(function() {
                 if (plotData1) plot1.replot();
                 if (plotData2) plot2.replot();
             }, 250);
-        });
+        }
+        $(window).on('resize.jqplot', replot);
+        $(document).on('wiretabclick.jqplot', replot);
     }
 
     // help

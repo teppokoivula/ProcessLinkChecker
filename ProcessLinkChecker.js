@@ -19,27 +19,26 @@ $(function() {
 
     // run Link Crawler on button click in Admin
     $('button[name=check-now]').on('click', function() {
-        $(this)
-            .next('iframe')
-                .addClass('loading')
-                .attr('src', $(this).next('iframe').data('src'))
-                .end()
-            .remove();
+        $(this).attr('disabled', 'disabled').find('i').addClass('fa-spin');
+        $('#link-checker-check-now-icon').addClass('fa-spin');
+        var $iframe = $('iframe.link-crawler-container');
+        $.cookie('link_checker_selector', $('#link-checker-check-now .Inputfield_selector code').text());
+        $iframe.addClass('loading').attr('src', $iframe.data('src'));
+    });
+    $('#link-checker-check-now').on('finished', '.link-crawler-summary', function(event, summary) {
         // display Link Crawler results when finished
-        $('p.description').on('finished', function(event, summary) {
-            $(this).text(summary);
-            $.get('./', function(data) {
-                $data = $(data).find('[id^=link-checker-]:not(:last)');
-                $data.each(function() {
-                    $('#' + $(this).attr('id')).html($(this).html());
-                });
-                updateLinkTablePlaceholders();
-                parent.$(window).off('resize.jqplot');
-                // note: timeout seems to fix certain replot issues
-                parent.setTimeout(function() {
-                    parent.processLinkCheckerDashboard();
-                }, 2000);
+        $(this).text(summary);
+        $.get('./', function(data) {
+            $data = $(data).find('[id^=link-checker-]:not(:last)');
+            $data.each(function() {
+                $('#' + $(this).attr('id')).html($(this).html());
             });
+            updateLinkTablePlaceholders();
+            parent.$(window).off('resize.jqplot');
+            parent.$(document).off('wiretabclick.jqplot');
+            parent.processLinkCheckerDashboard();
+            $('button[name=check-now]').removeAttr('disabled').find('i').removeClass('fa-spin');
+            $('#link-checker-check-now-icon').removeClass('fa-spin');
         });
     });
 
