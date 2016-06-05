@@ -7,21 +7,21 @@ use \ProcessWire\SelectorEqual;
 /**
  * Link Crawler
  * 
- * Link Crawler is intended to work with ProcessWire CMS/CMF and capture any
- * checkable links from rendered page content, identifying broken and/or
- * otherwise problematic links (redirects, server issues etc.)
+ * This class is intended for use with ProcessWire CMS/CMF. When instantiated
+ * and started, Link Crawler starts up ProcessWire, finds pages matching its
+ * configuration settings, and finds links from the contents of said pages.
  * 
- * Link Crawler doesn't provide any sort of API or UI itself. Instead it writes
- * it's output data to database tables, delegating such features to ProcessWire
- * module Process Link Checker.
+ * Link Crawler stores data about the links it finds to the database. Further
+ * analysis and GUI related features are delegated to the accompanied Process
+ * module, Process Link Checker.
  * 
- * @todo consider storing link texts to pages table (SEO analysis etc.)
- * @todo consider adding (separate) domain-based throttling
+ * @todo consider storing link texts to pages table (SEO and/or accessibility)
+ * @todo consider adding separate domain-based throttling mechanism
  * 
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.8.0
+ * @version 0.8.1
  *
  */
 class LinkCrawler {
@@ -56,8 +56,8 @@ class LinkCrawler {
     /**
      * Render method
      * 
-     * Render method is only configurable by editing this file at the moment,
-     * for various safety and compatibility reasons. Available options:
+     * At the moment render method is only configurable by editing this file,
+     * for various safety and compatibility reasons. Available options are:
      *     - render_page
      *     - render_fields
      *     - exec
@@ -99,7 +99,7 @@ class LinkCrawler {
      * Instance of ProcessWire for internal use
      * 
      */
-    protected $wire;
+    protected $wire = null;
 
     /**
      * Constants containing names of used database tables
@@ -124,6 +124,7 @@ class LinkCrawler {
      * 
      * @param array $options for overwriting defaults and/or module settings
      * @param string $root ProcessWire root path
+     * @throws Exception if ProcessWire can't be bootstrapped
      * @throws Exception if link_regex isn't set
      * @throws Exception if link_regex is set but invalid
      * @throws Exception if skipped_links_regex is set but invalid
@@ -134,8 +135,11 @@ class LinkCrawler {
         if (!defined("PROCESSWIRE")) {
             if (is_null($root)) $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
             require rtrim($root, "/") . "/index.php";
+            if (!defined("PROCESSWIRE")) {
+                throw new Exception("Unable to bootstrap ProcessWire");
+            }
         }
-        $this->wire = $wire ?: wire(); // @todo do we need the fallback?
+        $this->wire = $wire;
         $this->root = $root;
         // setup config object
         $this->wire->modules->getModule('ProcessLinkChecker', array('noPermissionCheck' => true));

@@ -3,15 +3,17 @@
 /**
  * Process Link Checker
  *
+ * Process Link Checker is a module for ProcessWire CMS/CMF. When used together
+ * with the Link Crawler class, the main feature of this module is providing a
+ * GUI for viewing broken links and redirects affecting content of the site.
+ * 
+ * @todo consider making tabs configurable (status codes on redirects tab etc.)
+ * @todo consider adding more widgets to the dashboard (domains, keywords, ...)
+ *
+ * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
- * ProcessWire 2.x 
- * Copyright (C) 2013 by Ryan Cramer 
- * Licensed under GNU/GPL v2, see LICENSE.TXT
- * 
- * http://processwire.com
- * 
  */
 class ProcessLinkChecker extends Process implements ConfigurableModule {
 
@@ -25,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.0',
+            'version' => '0.9.1',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -150,7 +152,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      * Placeholder for page object
      *
      */
-    protected $process_page;
+    protected $process_page = null;
     
     /**
      * Known tables and related WHERE clauses
@@ -166,7 +168,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      * Instance of LinkCrawler
      *
      */
-    protected $crawler;
+    protected $crawler = null;
     
     /**
      * Populate the default config data
@@ -436,6 +438,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     /**
      * Executed when page with this process assigned is accessed
      * 
+     * @return string
      */
     public function execute() {
 
@@ -882,7 +885,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
      * Build dashboard widgets
      * 
      * @return InputfieldFieldset
-     * @todo more widgets (domains, keywords, ...)
      */
     protected function buildDashboard() {
 
