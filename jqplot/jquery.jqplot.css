@@ -1,16 +1,11 @@
 /*rules for the plot target div.  These will be cascaded down to all plot elements according to css rules*/
 .jqplot-target {
     position: relative;
-    color: #fff;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.25);
+    color: #666666;
     font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
     font-size: 1em;
 /*    height: 300px;
     width: 400px;*/
-}
-#overview .jqplot-target {
-    color: #333;
-    text-shadow: none;
 }
 
 /*rules applied to all axes*/

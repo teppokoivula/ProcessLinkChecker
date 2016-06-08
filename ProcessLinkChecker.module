@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Simple tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.1',
+            'version' => '0.9.2',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -908,7 +908,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // overview
         $fieldset->add($widget = new InputfieldMarkup);
         $widget->label = $this->_("Overview");
-        $widget->columnWidth = 49;
         $json = array(array(), array(), array(), array());
         $query = $this->database->query("
             SELECT time_end, pages, pages_checked, unique_links, links_checked
@@ -941,7 +940,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         // status breakdown
         $fieldset->add($widget = new InputfieldMarkup);
         $widget->label = $this->_("Status breakdown");
-        $widget->columnWidth = 50;
         $status_info = "<i class='fa fa-question-circle' title='" . $this->_("none: unable to read link target, 2xx: OK, 3xx: redirect, 4xx: target not found, 5xx: target has an error") . "'></i>";
         $markup_rows = "<thead><tr>"
                      . "<th class='header'>" . $this->_("Status") . " {$status_info}</th>"

@@ -11,7 +11,6 @@ var processLinkCheckerDashboard = function() {
                 background: 'transparent',
                 shadow: false
             },
-            shadow: false,
             seriesDefaults: {
                 renderer: $.jqplot.DonutRenderer,
                 rendererOptions: {

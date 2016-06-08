@@ -112,15 +112,6 @@ button[name=check-now] {
     border: 1px solid #eee;
 }
 
-#link-checker-dashboard .InputfieldMarkup {
-    float: left;
-    clear: none;
-}
-
-#link-checker-dashboard .InputfieldMarkup:nth-child(even) {
-    float: right;
-}
-
 .help {
     box-sizing: border-box;
     border: 1px solid #BEBBA7;
@@ -220,6 +211,10 @@ button[name=check-now] {
     width: 100%;
     float: left;
     margin-top: 1em;
+}
+
+.plot {
+    min-height: 365px;
 }
 
 @media screen and (min-width: 1260px) {
