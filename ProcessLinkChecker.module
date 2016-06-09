@@ -25,9 +25,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     public static function getModuleInfo() {
         return array(
             'title' => __('Link Checker'),
-            'summary' => __('Simple tool for automated link checking.'),
+            'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.2',
+            'version' => '0.9.3',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -277,7 +277,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "batch_size";
         $field->label = __("Batch size");
         $field->columnWidth = 50;
-        $field->description = __("How many pages should be loaded into memory at simultaneously?");
+        $field->description = __("How many pages should be loaded into memory simultaneously?");
         $field->notes = __("Used to decrease memory usage during link crawling. Smaller batch size uses less memory but requires more database queries.");
         $field->value = $data[$field->name];
         $fieldset->add($field);
