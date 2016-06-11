@@ -89,9 +89,19 @@ var processLinkCheckerDashboard = function() {
     }
 
     // help
-    $('.help').on('click', function() {
-        $(this).toggleClass('open');
-    });
+    var linkCheckerHelp = $.cookie('link_checker_help');
+    linkCheckerHelp = linkCheckerHelp ? JSON.parse(linkCheckerHelp) : {};
+    $('.help')
+        .each(function() {
+            if (linkCheckerHelp[$(this).parent().attr('id')]) {
+                $(this).addClass('closed')
+            }
+        })
+        .on('click', function() {
+            $(this).toggleClass('closed');
+            linkCheckerHelp[$(this).parent().attr('id')] = $(this).hasClass('closed');
+            $.cookie('link_checker_help', JSON.stringify(linkCheckerHelp));
+        });
 
     // data tables
     $('table.data').each(function() {

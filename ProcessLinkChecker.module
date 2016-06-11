@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.3',
+            'version' => '0.9.4',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -995,7 +995,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $json = count($rows) ? json_encode(array(array_values($json))) : "";
         $widget->value = "<div id='status-breakdown'>"
                        . "<div class='help'>" . __("This graph outlines the health of the links on the site. While broken links and server errors are what you should be most worried about, redirects can cause additional delay for users, and can also imply that a piece of content is about to go away.") . "</div>"
-                       . "<table class='data'>{$markup_rows}</table>"
+                       . ($json ? "<table class='data'>{$markup_rows}</table>" : "<p>" . $this->_('Not enough data to display this graph.') . "</p>")
                        . "<div class='plot' id='status-breakdown-plot' data-json='{$json}'></div>"
                        . "</div>";
 
