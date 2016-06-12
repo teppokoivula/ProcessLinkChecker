@@ -1,9 +1,5 @@
 <?php
 
-use \ProcessWire\Page;
-use \ProcessWire\Selectors;
-use \ProcessWire\SelectorEqual;
-
 /**
  * Link Crawler
  * 
@@ -21,7 +17,7 @@ use \ProcessWire\SelectorEqual;
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.8.1
+ * @version 0.9.0
  *
  */
 class LinkCrawler {
@@ -100,6 +96,12 @@ class LinkCrawler {
      * 
      */
     protected $wire = null;
+    
+    /**
+     * ProcessWire namespace (required for 3.x support)
+     *
+     */
+    protected $wire_namespace = null;
 
     /**
      * Constants containing names of used database tables
@@ -139,8 +141,9 @@ class LinkCrawler {
                 throw new Exception("Unable to bootstrap ProcessWire");
             }
         }
-        $this->wire = $wire;
+        $this->wire = $wire ?: wire();
         $this->root = $root;
+        $this->wire_namespace = class_exists("\ProcessWire\Wire") ? '\\ProcessWire\\' : '';
         // setup config object
         $this->wire->modules->getModule('ProcessLinkChecker', array('noPermissionCheck' => true));
         $default_data = ProcessLinkChecker::getDefaultData();
@@ -215,7 +218,7 @@ class LinkCrawler {
         // find and check pages matching selector
         $start = 0;
         $start_selector = null;
-        $selectors = new Selectors($this->config->selector);
+        $selectors = $this->getWireClass("Selectors", array($this->config->selector));
         $this->stats['pages'] = $this->wire->pages->count((string) $selectors);
         $limit = $this->stats['pages'];
         foreach ($selectors as $selector) {
@@ -234,7 +237,7 @@ class LinkCrawler {
             $this->batch_size = $this->config->batch_size;
         }
         $start_original = $start;
-        $limit_selector = new SelectorEqual('limit', $this->batch_size);
+        $limit_selector = $this->getWireClass("SelectorEqual", array("limit", $this->batch_size));
         $selectors->add($limit_selector);
         $batches = ceil($limit / $this->batch_size);
         for ($batch = 0; $batch < $batches; ++$batch) {
@@ -245,11 +248,11 @@ class LinkCrawler {
             if ($batch) $start += $this->batch_size;
             if (($batch_pages = $start + $this->batch_size - $start_original) > $limit) {
                 $selectors->remove($limit_selector);
-                $limit_selector = new SelectorEqual('limit', $this->batch_size + ($limit - $batch_pages));
+                $limit_selector = $this->getWireClass("SelectorEqual", array("limit", $this->batch_size + ($limit - $batch_pages)));
                 $selectors->add($limit_selector);
             }
             if ($start_selector) $selectors->remove($start_selector);
-            $start_selector = new SelectorEqual('start', $start);
+            $start_selector = $this->getWireClass("SelectorEqual", array("start", $start));
             $selectors->add($start_selector);
             $this->log(sprintf(
                 "BATCH: %d/%d (pages %d-%d/%d)",
@@ -274,7 +277,7 @@ class LinkCrawler {
                 $status_breakdown[] = "$status " . round(($count/$this->stats['links_checked'])*100, 2) . "% ($count)";
             }
         }
-        $time = function_exists("wireRelativeTimeStr") ? wireRelativeTimeStr($this->stats['time_start']) : \ProcessWire\wireRelativeTimestr($this->stats['time_start']);
+        $time = call_user_func($this->wire_namespace . "wireRelativeTimeStr", $this->stats['time_start']);
         if ((int) $time) $this->stats['time_total'] = substr($time, 0, strpos($time, " ", strpos($time, " ")+1));
         $this->log(sprintf(
             "END: %d/%d Pages and %d/%d links checked in %s. Status breakdown: %s.",
@@ -301,13 +304,13 @@ class LinkCrawler {
      * This method receives an instance of ProcessWire Page, renders it and
      * attempts to capture and check all checkable links (URLs) in output.
      * 
-     * @param Page $page
+     * @param Page|\ProcessWire\Page $page
      * @return bool whether or not a Page was checked
      * @throws Exception if render method is exec but PHP binary isn't defined
      * @throws Exception if render method is exec but rener file isn't found
      * @throws Exception if render method is unrecognized
      */
-    protected function checkPage(Page $page) {
+    protected function checkPage($page) {
         // skip admin pages and non-viewable pages
         $isCheckablePage = $this->isCheckablePage($page);
         if (!$isCheckablePage->status) {
@@ -393,10 +396,10 @@ class LinkCrawler {
      * Check single link (URL) if it's deemed checkable
      * 
      * @param string $url URL to check
-     * @param Page $page Page containing URL, required for database logging
+     * @param Page|\ProcessWire\Page $page Page containing URL, required for database logging
      * @return bool|string|null false if URL can't be checked, otherwise status code (can be null)
      */
-    protected function checkURL($url, Page $page) {
+    protected function checkURL($url, $page) {
         // make sure that URL is valid, not already checked etc.
         $checkable = $this->isCheckableURL($url, $page);
         if ($checkable->unique) ++$this->stats['unique_links'];
@@ -451,10 +454,10 @@ class LinkCrawler {
      * This method is currently very simple, but exists partly to support
      * addition of more complex rules for identifying checkable pages.
      * 
-     * @param Page $page
+     * @param Page|\ProcessWire\Page $page
      * @return CheckableValue
      */
-    protected function isCheckablePage(Page $page) {
+    protected function isCheckablePage($page) {
         $return = new CheckableValue($page);
         if ($page->template == "admin") {
             $return->message = "NON-CHECKABLE Page: {$page->url} (template=admin)";
@@ -480,10 +483,10 @@ class LinkCrawler {
      * with the default HTTP host!
      *
      * @param string $url
-     * @param Page $page
+     * @param Page|\ProcessWire\Page $page
      * @return CheckableValue
      */
-    protected function isCheckableURL($url, Page $page) {
+    protected function isCheckableURL($url, $page) {
         if (strpos($url, ".") === 0) {
             // URL is relative to current page's path, expand before processing
             // @todo consider adding an option for skipping over URLs like this
@@ -715,6 +718,24 @@ class LinkCrawler {
             }
         } else {
             throw new Exception("Invalid 'name' param");
+        }
+    }
+
+    /**
+     * Return ProcessWire class (helper method for 2.x and 3.x support)
+     * 
+     * @param string $name
+     * @param array $arguments
+     * @return mixed
+     * @throws Exception if requested çlass doesn't exist
+     */
+    protected function getWireClass($name, $arguments = array()) {
+        $class = $this->wire_namespace . basename($name);
+        if (class_exists($class)) {
+            $reflection_class = new ReflectionClass($class);
+            return $reflection_class->newInstanceArgs($arguments);
+        } else {
+            throw new Exception("Class doesn't exist");
         }
     }
 
