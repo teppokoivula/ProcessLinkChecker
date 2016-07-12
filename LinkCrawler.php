@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.0
+ * @version 0.9.1
  *
  */
 class LinkCrawler {
@@ -487,13 +487,34 @@ class LinkCrawler {
      * @return CheckableValue
      */
     protected function isCheckableURL($url, $page) {
-        if (strpos($url, ".") === 0) {
-            // URL is relative to current page's path, expand before processing
-            // @todo consider adding an option for skipping over URLs like this
-            // @todo consider adding additional handling for "/./", "/../", etc.
-            $url = $page->url . $url;
+        $matches = null;
+        if ($url[0] == "." || !preg_match("/^((?:[a-z][a-z0-9+-\.]*)\:(?:\/\/)?|\/\/)([^\/\?\#]*)?/i", $url, $matches)) {
+            if ($url[0] != "/") {
+                // URL is relative to current page's path, expand before processing
+                $url = $page->url . $url;
+            }
         }
         $return = new CheckableValue($url);
+        if ($matches && $matches[1] != "//" && !in_array(strtolower(rtrim($matches[1], ":/")), array("http", "https"))) {
+            // skip unsupported schemes
+            $return->message = "unsupported scheme: {$matches[1]}";
+            return $return;
+        }
+        // convert relative URLs to absolute ones
+        $temp_url = strtok($url, "?#");
+        $suffix = $temp_url == $url ? "" : mb_substr($url, mb_strlen($temp_url));
+        $prefix = $matches ? $matches[1] . (isset($matches[2]) ? $matches[2] : "") : "";
+        $temp_url = $prefix ? mb_substr($temp_url, mb_strlen($prefix)) : $temp_url;
+        if (strpos($url, "./") !== false) {
+            $temp_url = ($temp_url[0] == "." ? $page->url : "") . $temp_url;
+            $temp_url = str_replace("/./", "/", $temp_url);
+            if (strpos($temp_url, "/../") !== false) {
+                $temp_url = preg_replace("/\/[^\/]+\/\.\./", "", $temp_url);
+            }
+            $temp_url = str_replace("/../", "/", $temp_url);
+        }
+        $temp_url = substr($temp_url, -2) == "/." ? rtrim($temp_url, ".") : $temp_url;
+        $url = $prefix . $temp_url . $suffix;
         if (isset($this->skipped_links[$url])) {
             // link has already been checked and found non-checkable
             $return->message = "found from run-time skipped links";
@@ -509,11 +530,6 @@ class LinkCrawler {
         if ($url == "." || $url == "./" || ($this->config->http_host && ($url == $this->config->http_host . $page->url))) {
             // skip links pointing to current page
             $return->message = "link points to current page";
-            return $return;
-        }
-        if (preg_match("/^((?!https?:).*):/i", $url, $matches)) {
-            // skip unsupported schemes
-            $return->message = "unsupported scheme: {$matches[1]}";
             return $return;
         }
         // minimal sanitization for URLs
