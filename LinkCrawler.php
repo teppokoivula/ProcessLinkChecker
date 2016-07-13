@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.1
+ * @version 0.9.2
  *
  */
 class LinkCrawler {
@@ -404,13 +404,12 @@ class LinkCrawler {
         $checkable = $this->isCheckableURL($url, $page);
         if ($checkable->unique) ++$this->stats['unique_links'];
         if ($checkable == "") {
-            $this->log("SKIPPED URL: {$url} ({$checkable->message})", 3);
+            $this->log("SKIPPED URL: {$url}" . ($checkable->value != $url ? " [{$checkable->value}]" : "") . " ({$checkable->message})", 3);
             return false;
         }
-        $final_url = $checkable->value;
         // new, checkable link found; grab status code, store link info
         // to database and cache link URL locally as a checked link
-        $headers = $this->getHeaders($final_url);
+        $headers = $this->getHeaders($checkable->value);
         $log_queue = array();
         $location = null;
         if (($headers['status'] == 301 || $headers['status'] == 302) && $headers['location'] && $this->config->max_recursion_depth) {
@@ -442,8 +441,8 @@ class LinkCrawler {
         $this->stmt_insert_links_pages->bindValue(':links_id', $links_id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
         $this->stmt_insert_links_pages->execute();
-        $this->checked_links[$final_url] = $links_id;
-        $this->log("CHECKED URL: {$url}" . ($final_url != $url ? " [{$final_url}]" : "") . " ({$headers['status']}" . ($location ? " => {$location}" : "") . ")", 3);
+        $this->checked_links[$checkable->value] = $links_id;
+        $this->log("CHECKED URL: {$url}" . ($checkable->value != $url ? " [{$checkable->value}]" : "") . " ({$headers['status']}" . ($location ? " => {$location}" : "") . ")", 3);
         $this->log($log_queue, 4);
         return $headers['status'];
     }
@@ -497,7 +496,7 @@ class LinkCrawler {
         $return = new CheckableValue($url);
         if ($matches && $matches[1] != "//" && !in_array(strtolower(rtrim($matches[1], ":/")), array("http", "https"))) {
             // skip unsupported schemes
-            $return->message = "unsupported scheme: {$matches[1]}";
+            $return->message = "unsupported scheme: " . rtrim($matches[1], ":/");
             return $return;
         }
         // convert relative URLs to absolute ones
@@ -514,7 +513,7 @@ class LinkCrawler {
             $temp_url = str_replace("/../", "/", $temp_url);
         }
         $temp_url = substr($temp_url, -2) == "/." ? rtrim($temp_url, ".") : $temp_url;
-        $url = $prefix . $temp_url . $suffix;
+        $return->value = $url = $prefix . $temp_url . $suffix;
         if (isset($this->skipped_links[$url])) {
             // link has already been checked and found non-checkable
             $return->message = "found from run-time skipped links";
@@ -544,6 +543,7 @@ class LinkCrawler {
                 $clean_url .= (strpos($clean_url, "?") ? "&" : "?") . $escaped_fragment;
             }
         }
+        $return->value = $clean_url;
         if (in_array($clean_url, array_keys($this->config->skipped_links))) {
             // compare URL to local skip list and continue if match is
             // found (but store a row to junction table nevertheless!)
