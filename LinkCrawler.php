@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.2
+ * @version 0.9.3
  *
  */
 class LinkCrawler {
@@ -50,25 +50,18 @@ class LinkCrawler {
     protected $root = null;
 
     /**
-     * Render method
-     * 
-     * At the moment render method is only configurable by editing this file,
-     * for various safety and compatibility reasons. Available options are:
-     *     - render_page
-     *     - render_fields
-     *     - exec
-     */
-    protected $render_method = 'render_fields';
-    
-    /**
      * Additional settings for the 'exec' render method
      * 
      * Render file is the path of the PHP file used to render pages, while PHP
      * binary is the path of the PHP binary itself.
+     * 
+     * Please note that these settings are *not* configurable via GUI because
+     * that would potentially result in serious vulnerabilities. If either of
+     * these needs to be changed, you'll have to change it here.
      *
      */
     protected $render_file = null;
-    protected $php_binary = '/usr/bin/php';
+    protected $php_binary = null;
     
     /**
      * Array of checked links (required for run-time caching)
@@ -306,8 +299,9 @@ class LinkCrawler {
      * 
      * @param Page|\ProcessWire\Page $page
      * @return bool whether or not a Page was checked
-     * @throws Exception if render method is exec but PHP binary isn't defined
-     * @throws Exception if render method is exec but rener file isn't found
+     * @throws Exception if render method is exec but exec() is not allowed
+     * @throws Exception if render method is exec but render file isn't found
+     * @throws Exception if render method is exec but PHP binary isn't executable
      * @throws Exception if render method is unrecognized
      */
     protected function checkPage($page) {
@@ -340,24 +334,34 @@ class LinkCrawler {
                     $data .= $field_value;
                 }
                 break;
-            case 'shell_exec': // temporary, added for backwards compatibility
             case 'exec':
+                if (!function_exists('exec')) {
+                    // note: this may not work as expected for PHP < 5.3
+                    throw new Exception("Exec is not allowed");
+                }
                 if (!$this->php_binary) {
                     if (version_compare(PHP_VERSION, "5.4.0") >= 0 && defined("PHP_BINARY")) {
+                        // use current PHP binary
                         $this->php_binary = PHP_BINARY;
                     } else {
-                        throw new Exception("PHP binary not defined");
+                        // PHP_BINARY not defined, use default value
+                        $this->php_binary = '/usr/bin/php';
                     }
+                }
+                if (!is_executable($this->php_binary)) {
+                    throw new Exception("PHP binary is not executable");
                 }
                 if (!$this->render_file) {
                     $this->render_file = __DIR__ . '/Render.php';
-                    if (!is_file($this->render_file)) {
-                        throw new Exception("Render file not found");
-                    }
+                }
+                if (!is_file($this->render_file)) {
+                    throw new Exception("Render file not found");
                 }
                 $command = escapeshellcmd(sprintf(
                     '%s %s %s %s',
-                    escapeshellarg($this->php_binary),
+                    // note: str_replace below was added for extra safety on PHP
+                    // 5.4 < 5.4.43, PHP 5.5 < 5.5.27, and PHP 5.6 < 5.6.11
+                    escapeshellarg(str_replace("!", " ", $this->php_binary)),
                     escapeshellarg($this->render_file),
                     escapeshellarg($this->root),
                     escapeshellarg((int) $page->id)

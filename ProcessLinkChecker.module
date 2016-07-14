@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.5',
+            'version' => '0.9.6',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -65,6 +65,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'skipped_links_regex' => null,
             'http_request_method' => 'get_headers',
             'http_user_agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
+            'render_method' => 'render_fields',
         );
     }
 
@@ -385,6 +386,30 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->notes = __("By default only the latest log file will be kept; each run replaces the file with new one.");
         $fieldset->add($field);
 
+        // render settings
+        $fieldset = wire('modules')->get('InputfieldFieldset');
+        $fieldset->label = __("Render");
+        $fieldset->icon = "file-text";
+        $fields->add($fieldset);
+
+        // render method
+        $field = wire('modules')->get('InputfieldSelect');
+        $field->name = "render_method";
+        $field->label = __("Render method");
+        $field->description = __("Define which render method to use. Please note that particularly the exec method may be risky, so avoid making changes here unless you know what you're doing.");
+        $exec_attributes = null;
+        if (!function_exists('exec')) {
+            $field->notes = __("Render method 'exec' is disabled because this system doesn't allow using the exec() command.");
+            $exec_attributes = array(
+                'disabled' => 'disabled',
+            );
+        }
+        $field->addOption('render_fields', __("Render fields: safe default option, but result doesn't necessarily match final page content"));
+        $field->addOption('render_page', __("Render page: provides more realistic results, but may require additional tweaks to template files"));
+        $field->addOption('exec', __("Exec: provides realistic results without requiring tweaks to template files, but makes use of exec() method and won't work on all servers"), $exec_attributes);
+        $field->value = $data[$field->name];
+        $fieldset->add($field);
+
         return $fields;
 
     }
@@ -431,6 +456,9 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         }
         if ($arguments[1]['http_host']) {
             $arguments[1]['http_host'] = rtrim((string) $arguments[1]['http_host'], "/") . "/";
+        }
+        if ($arguments[1]['render_method'] == 'exec' && !function_exists('exec')) {
+            $arguments[1]['render_method'] = 'render_fields';
         }
         $event->arguments = $arguments;
     }
