@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.5
+ * @version 0.9.6
  *
  */
 class LinkCrawler {
@@ -317,6 +317,7 @@ class LinkCrawler {
         }
         // capture, iterate and check all links on page
         $data = "";
+        $page->setOutputFormatting();
         switch ($this->render_method) {
             case 'render_page':
                 $data = $page->render();
