@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.7',
+            'version' => '0.9.8',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -203,11 +203,14 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $data = array_merge($defaults, $data);
 
         // clear cache?
-        $cache_interval = wire('database')->escapeStr($data['cache_max_age']);
-        $cache_query = wire('database')->query("SELECT COUNT(*) FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
+        $cache_query = wire('database')->query("SELECT COUNT(*) FROM " . self::TABLE_LINKS . " WHERE skip = 0");
         $cache_count = (int) $cache_query->fetchColumn();
         if (wire('input')->post->_clear_cache) {
-            wire('database')->query("DELETE FROM " . self::TABLE_LINKS . " WHERE skip != 1 AND checked > DATE_SUB(NOW(), INTERVAL $cache_interval)");
+            wire('database')->query("
+                DELETE links, links_pages
+                FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
+                WHERE links.skip = 0 AND links_pages.links_id = links.id
+            ");
             wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
             wire('session')->redirect($_SERVER['REQUEST_URI'], false);
         }

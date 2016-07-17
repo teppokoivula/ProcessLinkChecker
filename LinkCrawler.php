@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.4
+ * @version 0.9.5
  *
  */
 class LinkCrawler {
@@ -74,6 +74,12 @@ class LinkCrawler {
      * 
      */
     protected $skipped_links = array();
+
+    /**
+     * Array of skipped links (required for caching)
+     * 
+     */
+    protected $skipped_links_cache = array();
 
     /**
      * Placeholders for prepared PDO statements
@@ -153,15 +159,8 @@ class LinkCrawler {
         if ($this->skipped_links_regex && !preg_match('/^(?:([^\w\s\\\]|_).*\1(?:[imsxADSUXJu]*)(?:\r\n|\n|\r|$))+$/', implode("\n", $this->skipped_links_regex))) {
             throw new Exception("invalid skipped_links_regex");
         }
-        // merge skipped and cached links from database with defaults
-        if (!$this->config->skipped_links) $this->config->skipped_links = array();
-        $this->config->skipped_links = array_fill_keys($this->config->skipped_links, null);
-        $interval = $this->wire->database->escapeStr($this->config->cache_max_age);
-        $query = $this->wire->database->query("SELECT url FROM " . self::TABLE_LINKS . " WHERE skip = 1 OR checked > DATE_SUB(NOW(), INTERVAL $interval)");
-        $links = $query->fetchAll(PDO::FETCH_COLUMN);
-        if (count($links)) {
-            $this->config->skipped_links = array_merge($this->config->skipped_links, array_fill_keys($links, null));
-        }
+        // build skipped links cache from config and database
+        $this->buildLinkCache();
         // support fractions of seconds in request throttling
         if ($this->config->sleep_between_requests) {
             $this->config->sleep_between_requests = round($this->config->sleep_between_requests*1000000);
@@ -208,12 +207,7 @@ class LinkCrawler {
             $this->log("START: {$this->config->selector}");
         }
         // cleanup any expired data
-        $interval = $this->wire->database->escapeStr($this->config->cache_max_age);
-        $this->wire->database->query("
-            DELETE links, links_pages 
-            FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
-            WHERE links.skip = 0 AND links.checked < DATE_SUB(NOW(), INTERVAL $interval) AND links_pages.links_id = links.id
-        ");
+        $this->flushLinkCache(true);
         // find and check pages matching selector
         $start = 0;
         $start_selector = null;
@@ -553,17 +547,17 @@ class LinkCrawler {
             }
         }
         $return->value = $clean_url;
-        if (in_array($clean_url, array_keys($this->config->skipped_links))) {
+        if (in_array($clean_url, array_keys($this->skipped_links_cache))) {
             // compare URL to local skip list and continue if match is
             // found (but store a row to junction table nevertheless!)
-            if (is_null($this->config->skipped_links[$clean_url])) {
+            if (is_null($this->skipped_links_cache[$clean_url])) {
                 $this->stmt_select_id->bindValue(':url', $clean_url, PDO::PARAM_STR);
                 $this->stmt_select_id->execute();
                 $links_id = (int) $this->stmt_select_id->fetchColumn();
-                $this->config->skipped_links[$clean_url] = $links_id ? $links_id : 0;
+                $this->skipped_links_cache[$clean_url] = $links_id ? $links_id : 0;
             }
-            if ($this->config->skipped_links[$clean_url]) {
-                $this->stmt_insert_links_pages->bindValue(':links_id', $this->config->skipped_links[$clean_url], PDO::PARAM_INT);
+            if ($this->skipped_links_cache[$clean_url]) {
+                $this->stmt_insert_links_pages->bindValue(':links_id', $this->skipped_links_cache[$clean_url], PDO::PARAM_INT);
                 $this->stmt_insert_links_pages->bindValue(':pages_id', $page->id, PDO::PARAM_INT);
                 $this->stmt_insert_links_pages->execute();
             }
@@ -743,6 +737,45 @@ class LinkCrawler {
             }
         } else {
             throw new Exception("Invalid 'name' param");
+        }
+    }
+
+    /**
+     * Flush skipped links cache
+     * 
+     * @param bool $expired_only Flush expired rows only?
+     * @return bool|PDOStatement False on failure, PDOStatement on success
+     */
+    public function flushLinkCache($expired_only = false) {
+        $interval = "";
+        if ($expired_only) {
+            $cache_interval = $this->wire->database->escapeStr($this->config->cache_max_age);
+            $interval = "AND links.checked < DATE_SUB(NOW(), INTERVAL $cache_interval) ";
+        }
+        $return = $this->wire->database->query("
+            DELETE links, links_pages 
+            FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
+            WHERE links.skip = 0 " . $interval . "AND links_pages.links_id = links.id
+        ");
+        $this->buildLinkCache();
+        return $return;
+    }
+    
+    /**
+     * Build skipped links cache
+     * 
+     * Merge skipped/cached links from database with defaults from config. This
+     * method is automatically called during construct and after flushing cache.
+     * 
+     */
+    protected function buildLinkCache() {
+        $this->skipped_links_cache = $this->config->skipped_links ?: array();
+        $this->skipped_links_cache = array_fill_keys($this->skipped_links_cache, null);
+        $interval = $this->wire->database->escapeStr($this->config->cache_max_age);
+        $query = $this->wire->database->query("SELECT url FROM " . self::TABLE_LINKS . " WHERE skip = 1 OR checked > DATE_SUB(NOW(), INTERVAL $interval)");
+        $links = $query->fetchAll(PDO::FETCH_COLUMN);
+        if (count($links)) {
+            $this->skipped_links_cache = array_merge($this->skipped_links_cache, array_fill_keys($links, null));
         }
     }
 
