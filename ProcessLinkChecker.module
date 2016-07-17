@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.6',
+            'version' => '0.9.7',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -52,6 +52,8 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'skipped_links' => array(),
             'cache_max_age' => '1 DAY',
             'selector' => 'status<8192, id!=2, has_parent!=2',
+            'http_host_source' => 'manual',
+            'http_host_protocol' => 'http',
             'http_host' => null,
             'log_level' => 1,
             'log_rotate' => 0,
@@ -260,11 +262,38 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $fieldset->add($field);
 
         // default http host
-        $field = wire('modules')->get('InputfieldURL');
-        $field->name = "http_host";
+        $field = wire('modules')->get('InputfieldRadios');
+        $field->name = "http_host_source";
         $field->label = __("HTTP host for relative URLs");
         $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
+        $field->addOptions(array(
+            'manual' => _('Define manually'),
+            'config' => _('Use $config->httpHost'),
+        ));
         $field->value = $data[$field->name];
+        $fieldset->add($field);
+
+        // default http host
+        $field = wire('modules')->get('InputfieldRadios');
+        $field->name = "http_host_protocol";
+        $field->label = __("Protocol used for relative URLs");
+        $field->description = __('When HTTP host is defined by $config->httpHost, protocol needs to be defined separately.');
+        $field->addOptions(array(
+            'http' => 'HTTP',
+            'https' => 'HTTPS',
+        ));
+        $field->value = $data[$field->name];
+        $field->showIf = "http_host_source=config";
+        $fieldset->add($field);
+
+        // default http host
+        $field = wire('modules')->get('InputfieldURL');
+        $field->name = "http_host";
+        $field->label = __("Manually defined HTTP host");
+        $field->description = __("Type in the full address of your site, including the http:// or https:// prefix.");
+        $field->notes = __("If HTTP host is left blank, relative URLs won't be checked.");
+        $field->value = $data[$field->name];
+        $field->showIf = "http_host_source=manual";
         $fieldset->add($field);
 
         // conection settings
@@ -344,10 +373,12 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "cache_max_age";
         $field->label = __("Cache max age");
         $field->description = __("How long should we wait before checking a previously checked link again?");
-        $field->addOption('1 DAY', __("1 day"));
-        $field->addOption('1 WEEK', __("1 week"));
-        $field->addOption('2 WEEK', __("2 weeks"));
-        $field->addOption('1 MONTH', __("1 month"));
+        $field->addOptions(array(
+            '1 DAY' => __("1 day"),
+            '1 WEEK' => __("1 week"),
+            '2 WEEK' => __("2 weeks"),
+            '1 MONTH' => __("1 month"),
+        ));
         $field->value = $data[$field->name];
         $fieldset->add($field);
 
@@ -369,11 +400,13 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->name = "log_level";
         $field->label = __("Log level");
         $field->description = __("Define how much gets logged by crawler.");
-        $field->addOption('0', '0 ' . __("Nothing (no logging)"));
-        $field->addOption('1', '1 ' . __("Start of each crawl"));
-        $field->addOption('2', '2 ' . __("Crawled pages"));
-        $field->addOption('3', '3 ' . __("Crawled pages and found URLs"));
-        $field->addOption('4', '4 ' . __("Crawled pages, found URLs and recursively checked URLs"));
+        $field->addOptions(array(
+            '0' => '0 ' . __("Nothing (no logging)"),
+            '1' => '1 ' . __("Start of each crawl"),
+            '2' => '2 ' . __("Crawled pages"),
+            '3' => '3 ' . __("Crawled pages and found URLs"),
+            '4' => '4 ' . __("Crawled pages, found URLs and recursively checked URLs"),
+        ));
         $field->value = $data[$field->name];
         $fieldset->add($field);
 

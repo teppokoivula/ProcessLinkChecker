@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.3
+ * @version 0.9.4
  *
  */
 class LinkCrawler {
@@ -169,8 +169,14 @@ class LinkCrawler {
         if ($this->config->sleep_between_pages) {
             $this->config->sleep_between_pages = round($this->config->sleep_between_pages*1000000);
         }
+        // HTTP host configuration
+        if ($this->config->http_host_source == "config") {
+            $this->config->http_host = $this->config->http_host_protocol . "://" . $this->wire->config->httpHost;
+        }
+        if ($this->config->http_host) {
+            $this->config->http_host = rtrim($this->config->http_host, "/");
+        }
         // set default stream context options for get_headers()
-        // @todo do we really want to implement custom code to follow redirects?
         stream_context_set_default(array(
             'http' => array(
                 'follow_location' => 0,
@@ -425,7 +431,6 @@ class LinkCrawler {
             while ($rec_depth < $this->config->max_recursion_depth && $rec_headers['location']) {
                 ++$rec_depth;
                 $rec_url = $rec_headers['location'];
-                // @todo if get_headers() is allowed to follow_location, something like this is required: if (is_array($rec_url)) $rec_url = array_pop($rec_url);
                 $rec_headers = $this->getHeaders($rec_url);
                 if ($rec_headers['status'] != 301 && $rec_headers['status'] != 302) {
                     // update location only if non-redirect location was found
@@ -530,7 +535,7 @@ class LinkCrawler {
             $return->message = "admin URL";
             return $return;
         }
-        if ($url == "." || $url == "./" || ($this->config->http_host && ($url == $this->config->http_host . $page->url))) {
+        if ($url == "." || $url == "./" || $url == $page->url || ($this->config->http_host && ($url == $this->config->http_host . $page->url))) {
             // skip links pointing to current page
             $return->message = "link points to current page";
             return $return;
@@ -582,7 +587,7 @@ class LinkCrawler {
                 $return->message = "local URL and no http_host specified";
                 return $return;
             }
-            return $this->isCheckableURL($this->config->http_host . ltrim($clean_url, "/"), $page);
+            return $this->isCheckableURL($this->config->http_host . "/" . ltrim($clean_url, "/"), $page);
         }
         if (!filter_var(str_replace("-", "", $clean_url), FILTER_VALIDATE_URL)) {
             // note: here we attempt to circumvent a PHP 5.3.2 bug affecting
