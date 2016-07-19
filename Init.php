@@ -16,5 +16,10 @@ ignore_user_abort(true);
 
 // load, instantiate and run Link Crawler
 require __DIR__ . '/LinkCrawler.php';
-$crawler = new LinkCrawler();
+$crawler = new LinkCrawler(array(
+    'log_on_screen' => true,
+    'log_level' => 4,
+    'selector' => 'id=1',
+));
+# $crawler->flushLinkCache();
 $crawler->start();

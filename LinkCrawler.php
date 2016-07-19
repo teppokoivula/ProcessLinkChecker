@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.6
+ * @version 0.9.7
  *
  */
 class LinkCrawler {
@@ -341,7 +341,7 @@ class LinkCrawler {
                     throw new Exception("Exec is not allowed");
                 }
                 if (!$this->php_binary) {
-                    if (version_compare(PHP_VERSION, "5.4.0") >= 0 && defined("PHP_BINARY")) {
+                    if (version_compare(PHP_VERSION, "5.4.0") >= 0 && defined("PHP_BINARY") && PHP_BINARY != "") {
                         // use current PHP binary
                         $this->php_binary = PHP_BINARY;
                     } else {
