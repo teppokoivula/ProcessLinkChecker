@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.8
+ * @version 0.9.9
  *
  */
 class LinkCrawler {
@@ -136,7 +136,7 @@ class LinkCrawler {
         if (!defined("PROCESSWIRE") || (!$wire && !function_exists("wire"))) {
             if (is_null($root)) $root = substr(__DIR__, 0, strrpos(__DIR__, "/modules")) . "/..";
             require rtrim($root, "/") . "/index.php";
-            if (!defined("PROCESSWIRE")) {
+            if (!defined("PROCESSWIRE") || (!$wire && !function_exists("wire"))) {
                 throw new Exception("Unable to bootstrap ProcessWire");
             }
         }
