@@ -27,7 +27,7 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'title' => __('Link Checker'),
             'summary' => __('Tool for automated link checking.'),
             'author' => 'Teppo Koivula',
-            'version' => '0.9.8',
+            'version' => '0.9.9',
             'singular' => true,
             'autoload' => 'template=admin, name=module|' . self::PAGE_NAME,
             'permission' => 'link-checker',
@@ -203,16 +203,24 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $data = array_merge($defaults, $data);
 
         // clear cache?
-        $cache_query = wire('database')->query("SELECT COUNT(*) FROM " . self::TABLE_LINKS . " WHERE skip = 0");
-        $cache_count = (int) $cache_query->fetchColumn();
-        if (wire('input')->post->_clear_cache) {
-            wire('database')->query("
-                DELETE links, links_pages
-                FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
-                WHERE links.skip = 0 AND links_pages.links_id = links.id
-            ");
-            wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
-            wire('session')->redirect($_SERVER['REQUEST_URI'], false);
+        $cache_count = null;
+        try {
+            $cache_query = wire('database')->query("SELECT COUNT(*) FROM " . self::TABLE_LINKS . " WHERE skip = 0");
+            $cache_count = (int) $cache_query->fetchColumn();
+            if (wire('input')->post->_clear_cache) {
+                wire('database')->query("
+                    DELETE links, links_pages
+                    FROM " . self::TABLE_LINKS . " links, " . self::TABLE_LINKS_PAGES . " links_pages 
+                    WHERE links.skip = 0 AND links_pages.links_id = links.id
+                ");
+                wire('session')->message(sprintf(__("Cleared cache for %d links"), $cache_count));
+                wire('session')->redirect($_SERVER['REQUEST_URI'], false);
+            }
+        } catch (Exception $e) {
+            $field = wire('modules')->get('InputfieldMarkup');
+            $field->contentClass = 'NoticeError';
+            $field->markupText = __("Error: links table is currently unreachable, possibly due to a database issue.");
+            $fields->add($field);
         }
 
         // selector for finding pages to check for broken links
@@ -389,7 +397,11 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field = wire('modules')->get('InputfieldCheckbox');
         $field->name = "_clear_cache";
         $field->label = __("Clear cache now");
-        $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
+        if ($cache_count === null) {
+            $field->notes = __("Cache status is currently unknown due to a potential database issue.");
+        } else {
+            $field->notes = sprintf(__("Total of **%d** links are currently cached."), $cache_count);
+        }
         $fieldset->add($field);
 
         // logging settings
@@ -758,10 +770,23 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
     }
 
     /**
-     * When module is installed, create database tables for storing data
+     * Install routine
+     * 
+     * When the module is installed, create required database tables and add
+     * a new page under the admin area.
      *
      */
     public function install() {
+
+        // create a page for the module
+        $page = new Page();
+        $page->template = 'admin';
+        $page->name = self::PAGE_NAME;
+        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup, include=all');
+        $page->process = $this;
+        $page->title = $this->_("Link Checker");
+        $page->save();
+        $this->message("Created new page: {$page->path}");
 
         // table containing all found links
         $this->createTable(self::TABLE_LINKS, array(
@@ -794,19 +819,6 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
             'status VARCHAR(255) NOT NULL',
             'PRIMARY KEY (time_end)',
         ));
-
-        // create a page for this module
-        $page = new Page();
-        $page->template = 'admin';
-        $page->name = self::PAGE_NAME; 
-        $page->process = $this; 
-        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
-        $info = self::getModuleInfo();
-        $page->title = $this->_("Link Checker");
-        $page->save();
-
-        // tell user that we've created a new page
-        $this->message("Created Page: {$page->path}"); 
 
     }
 
