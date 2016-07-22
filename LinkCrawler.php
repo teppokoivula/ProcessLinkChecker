@@ -17,7 +17,7 @@
  * @author Teppo Koivula <teppo.koivula@gmail.com>
  * @copyright Copyright (c) 2014-2016, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- * @version 0.9.9
+ * @version 0.9.10
  *
  */
 class LinkCrawler {
@@ -153,10 +153,10 @@ class LinkCrawler {
             throw new Exception("link_regex is required");
         }
         // validate regex settings with more regex
-        if (!preg_match('/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/', $this->link_regex)) {
+        if (!preg_match('/(^[^\w\s\\\]|_).*\1([imsxADSUXJu]*)$/', $this->config->link_regex)) {
             throw new Exception("invalid link_regex");
         }
-        if ($this->skipped_links_regex && !preg_match('/^(?:([^\w\s\\\]|_).*\1(?:[imsxADSUXJu]*)(?:\r\n|\n|\r|$))+$/', implode("\n", $this->skipped_links_regex))) {
+        if ($this->config->skipped_links_regex && !preg_match('/^(?:([^\w\s\\\]|_).*\1(?:[imsxADSUXJu]*)(?:\r\n|\n|\r|$))+$/', implode("\n", $this->config->skipped_links_regex))) {
             throw new Exception("invalid skipped_links_regex");
         }
         // build skipped links cache from config and database
@@ -318,7 +318,7 @@ class LinkCrawler {
         // capture, iterate and check all links on page
         $data = "";
         $page->setOutputFormatting();
-        switch ($this->render_method) {
+        switch ($this->config->render_method) {
             case 'render_page':
                 $data = $page->render();
                 break;
@@ -565,8 +565,8 @@ class LinkCrawler {
             $return->message = "found from skipped links";
             return $return;
         }
-        if ($this->skipped_links_regex) {
-            foreach ($this->skipped_links_regex as $skipped_links_regex) {
+        if ($this->config->skipped_links_regex) {
+            foreach ($this->config->skipped_links_regex as $skipped_links_regex) {
                 if (preg_match($skipped_links_regex, $clean_url)) {
                     $return->message = "matches skipped links regex";
                     return $return;
