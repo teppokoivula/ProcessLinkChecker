@@ -278,8 +278,8 @@ class ProcessLinkChecker extends Process implements ConfigurableModule {
         $field->label = __("HTTP host for relative URLs");
         $field->description = __("Relative URLs need to be prefixed with HTTP host (such as http://localhost/) before they can be checked.");
         $field->addOptions(array(
-            'manual' => _('Define manually'),
-            'config' => _('Use $config->httpHost'),
+            'manual' => __('Define manually'),
+            'config' => __('Use $config->httpHost'),
         ));
         $field->value = $data[$field->name];
         $fieldset->add($field);
